@@ -1,0 +1,26 @@
+{
+  "name": "Perfil con libro de visitas (LAB-02)",
+  "image": "mcr.microsoft.com/devcontainers/base:2.2.1-bookworm",
+
+  // Un Docker propio dentro del Codespace, para correr docker compose.
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+
+  // Una sola vez, al crear el Codespace: genera .env con una contraseña aleatoria.
+  "postCreateCommand": "bash scripts/crear-env.sh",
+  // En cada arranque (también tras detener y reanudar): levanta los tres servicios.
+  "postStartCommand": "bash .devcontainer/arrancar.sh",
+
+  // Solo se reenvía web; api y db no publican puertos.
+  "forwardPorts": [8080],
+  "portsAttributes": {
+    "8080": {
+      "label": "Perfil (web)",
+      "onAutoForward": "openPreview"
+    }
+  },
+  "otherPortsAttributes": {
+    "onAutoForward": "silent"
+  }
+}
