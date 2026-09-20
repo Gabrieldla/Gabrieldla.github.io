@@ -27,4 +27,8 @@ COPY --from=build /opt/venv /opt/venv
 COPY app.py .
 
 EXPOSE 3000
+# La imagen no tiene curl ni wget: el chequeo usa urllib de la librería estándar.
+# /api/health responde 503 si no alcanza la base, y urlopen lanza error con un 503.
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
+  CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/api/health', timeout=2)"]
 CMD ["gunicorn", "-b", "0.0.0.0:3000", "app:app"]
