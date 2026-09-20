@@ -8,3 +8,5 @@ COPY --chmod=644 web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --chmod=644 index.html libro-de-visitas.js estilos.css /usr/share/nginx/html/
 
 EXPOSE 8080
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
+  CMD ["curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8080/healthz"]

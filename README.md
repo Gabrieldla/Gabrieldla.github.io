@@ -57,3 +57,43 @@ Cada push a `main` despliega automáticamente con GitHub Pages.
   - La primera versión multi-stage pesaba 223 MB y todavía traía `pip` dentro de `/opt/venv`, porque `python -m venv` lo instala por defecto. Me di cuenta al revisar la imagen por dentro, no mirando el tamaño. Lo resolví desinstalándolo en la etapa `build`: 223 → 206 MB.
   - Esperaba que `dive` le diera mejor "eficiencia" a la imagen chica, y fue al revés: 99.3 % la ingenua contra 97.2 % la multi-stage. Aprendí que esa métrica mide archivos duplicados entre capas, no el tamaño total, así que no sirve para comparar el antes y el después de este reto.
   - La imagen base todavía trae su propio `pip` en `/usr/local`. Lo dejé para el Reto 5, para medir con el escáner si quitarlo cambia algo.
+
+### Reto 2: Arranque ordenado
+
+- **Decisión:** los tres servicios tienen healthcheck. `db` usa `pg_isready`, `api` consulta su propio `/api/health` con `urllib` de Python y `web` pide `/healthz` a nginx con `curl`. Las dependencias usan `condition: service_healthy`, así que el orden queda db → api → web, y cada uno espera a que el anterior esté **sano**, no solo encendido.
+- **Alternativas que evalué:**
+  - *`depends_on` simple (lista)*: solo ordena el arranque de los contenedores, no espera a que Postgres acepte conexiones. La API arrancaba igual, pero quedaba unos segundos respondiendo 503 y `--wait` no tenía nada que esperar.
+  - *Un script de espera en la API* (`wait-for-it.sh` o un bucle en el entrypoint): mete lógica de infraestructura en la imagen y exige un shell y herramientas extra. Además, solo cubre el arranque, no una caída posterior de la base.
+  - *Healthcheck de la API con `curl` o `wget`*: la imagen slim no los tiene, e instalarlos solo para esto agrega peso y paquetes vulnerables (Reto 5). Python ya está en la imagen, y `urllib` es parte de la librería estándar.
+- **Por qué elegí esta:** el estado "sano" lo declara cada servicio con un chequeo real, y Compose lo usa para ordenar. `/api/health` de la API solo responde 200 si **alcanza la base**, así que "api sana" significa "api que puede atender", no "proceso vivo". El `HEALTHCHECK` de `api` y `web` va en el **Dockerfile** porque es parte de la imagen: viaja con ella a GHCR y sirve aunque alguien la corra sin este compose. El de `db` va en **compose.yaml** porque usa la imagen oficial de Postgres y depende de `POSTGRES_USER`/`POSTGRES_DB`, que se definen en el compose. En `web` agregué un `location = /healthz` que responde nginx mismo, sin pasar por disco ni por la API y sin llenar el access log cada 10 s.
+- **Fuentes consultadas:**
+  - https://docs.docker.com/reference/dockerfile/#healthcheck
+  - https://docs.docker.com/reference/compose-file/services/#healthcheck
+  - https://docs.docker.com/compose/how-tos/startup-order/
+  - https://www.postgresql.org/docs/16/app-pg-isready.html
+  - https://docs.python.org/3/library/urllib.request.html
+- **Cómo lo verifiqué:**
+
+  ```text
+  $ docker compose up -d --build --wait        # vuelve al prompt solo cuando todo está sano (~18 s)
+   Container perfil-db-1   Healthy
+   Container perfil-api-1  Healthy
+   Container perfil-web-1  Healthy
+
+  $ docker compose ps
+  SERVICE   STATUS                    PORTS
+  api       Up 11 seconds (healthy)   3000/tcp
+  db        Up 17 seconds (healthy)   5432/tcp
+  web       Up 5 seconds (healthy)    0.0.0.0:8080->8080/tcp
+
+  # Prueba extra: ¿el healthcheck detecta una caída real?
+  $ docker compose stop db && sleep 35 && docker compose ps -a
+  api       Up 46 seconds (unhealthy)      ← /api/health responde 503
+  db        Exited (0) 35 seconds ago
+  $ docker compose up -d --wait            ← db vuelve, api se recupera sola sin reiniciarse
+  ```
+
+- **Qué no me funcionó / qué aprendí:**
+  - En el healthcheck de `db` escribí primero `$POSTGRES_USER` con un solo `$`. Compose lo reemplaza **en el host** al leer el archivo, no dentro del contenedor. Con `$$` la variable llega literal y la expande el shell del contenedor.
+  - Esperaba que Docker reiniciara la API cuando quedó `unhealthy`, y no lo hace: Docker solo **marca** el estado, y `depends_on` lo usa únicamente en el arranque. Reiniciar según la salud es trabajo de un orquestador; en Kubernetes eso es la `livenessProbe` (LAB-03).
+  - Al escribir los `HEALTHCHECK` con un script se me perdió la `\` de continuación de línea. Docker lo aceptó igual en una sola línea, pero lo corregí para que se pueda leer.
