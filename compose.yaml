@@ -1,6 +1,16 @@
 name: perfil
 
 services:
+  web:
+    build:
+      # El contexto es la raíz (ahí está index.html); el Dockerfile vive en web/.
+      context: .
+      dockerfile: web/Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
+
   api:
     build: ./api
     environment:

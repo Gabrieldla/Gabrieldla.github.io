@@ -1,0 +1,7 @@
+# Como el contexto es la raíz del repo, se ignora todo y solo se deja pasar
+# lo que la imagen de web necesita. Así no viajan .git, .env ni el código de la API.
+*
+!index.html
+!libro-de-visitas.js
+!estilos.css
+!web/nginx.conf
