@@ -9,7 +9,8 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - api
+      api:
+        condition: service_healthy   # nginx no arranca hasta que la API esté sana
 
   api:
     build: ./api
@@ -20,7 +21,8 @@ services:
       DB_USER: ${POSTGRES_USER:-app}
       DB_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD. Crea tu .env a partir de .env.example}
     depends_on:
-      - db
+      db:
+        condition: service_healthy   # depends_on solo no espera: sin esto la API arranca antes que Postgres
 
   db:
     build: ./db
@@ -30,6 +32,13 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD. Crea tu .env a partir de .env.example}
     volumes:
       - datos-db:/var/lib/postgresql/data
+    healthcheck:
+      # $$ para que Compose no reemplace la variable: la expande el shell del contenedor.
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
 
 volumes:
   datos-db:
