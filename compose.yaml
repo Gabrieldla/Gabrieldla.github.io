@@ -1,0 +1,25 @@
+name: perfil
+
+services:
+  api:
+    build: ./api
+    environment:
+      # Una sola fuente de verdad: la API usa las mismas variables que crean la base.
+      DB_HOST: db
+      DB_NAME: ${POSTGRES_DB:-libro}
+      DB_USER: ${POSTGRES_USER:-app}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD. Crea tu .env a partir de .env.example}
+    depends_on:
+      - db
+
+  db:
+    build: ./db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-libro}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD. Crea tu .env a partir de .env.example}
+    volumes:
+      - datos-db:/var/lib/postgresql/data
+
+volumes:
+  datos-db:
