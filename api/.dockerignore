@@ -1,0 +1,7 @@
+# Solo entra al contexto lo que la imagen necesita.
+Dockerfile
+.dockerignore
+__pycache__/
+*.pyc
+.venv/
+.env
