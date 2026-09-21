@@ -6,6 +6,8 @@ services:
       # El contexto es la raíz (ahí está index.html); el Dockerfile vive en web/.
       context: .
       dockerfile: web/Dockerfile
+    # Nombre con el que se publica en GHCR (B5). Tag fijo, nunca latest.
+    image: ghcr.io/gabrieldla/perfil-web:1.0
     ports:
       # El único puerto publicado hacia el host de toda la aplicación.
       - "8080:8080"
@@ -17,6 +19,7 @@ services:
 
   api:
     build: ./api
+    image: ghcr.io/gabrieldla/perfil-api:1.0
     environment:
       # Una sola fuente de verdad: la API usa las mismas variables que crean la base.
       DB_HOST: db
@@ -33,6 +36,9 @@ services:
 
   db:
     build: ./db
+    image: perfil-db:1.0
+    # Solo se construye en local: esta imagen no se publica.
+    pull_policy: build
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-libro}
       POSTGRES_USER: ${POSTGRES_USER:-app}
