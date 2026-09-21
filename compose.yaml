@@ -7,7 +7,10 @@ services:
       context: .
       dockerfile: web/Dockerfile
     ports:
+      # El único puerto publicado hacia el host de toda la aplicación.
       - "8080:8080"
+    networks:
+      - frontend
     depends_on:
       api:
         condition: service_healthy   # nginx no arranca hasta que la API esté sana
@@ -23,6 +26,10 @@ services:
     depends_on:
       db:
         condition: service_healthy   # depends_on solo no espera: sin esto la API arranca antes que Postgres
+    networks:
+      # El único servicio en las dos redes: es el puente obligado entre web y db.
+      - frontend
+      - backend
 
   db:
     build: ./db
@@ -30,6 +37,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-libro}
       POSTGRES_USER: ${POSTGRES_USER:-app}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD. Crea tu .env a partir de .env.example}
+    networks:
+      - backend
     volumes:
       - datos-db:/var/lib/postgresql/data
     healthcheck:
@@ -39,6 +48,12 @@ services:
       timeout: 3s
       retries: 10
       start_period: 10s
+
+networks:
+  # Dos switches virtuales distintos. Un servicio solo alcanza a los que están
+  # enchufados a su misma red, así que no existe ningún camino de web a db.
+  frontend:
+  backend:
 
 volumes:
   datos-db:
