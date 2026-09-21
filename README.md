@@ -134,3 +134,40 @@ Cada push a `main` despliega automáticamente con GitHub Pages.
 - **Qué no me funcionó / qué aprendí:**
   - Mi duda era si `USER postgres` rompería la inicialización, porque el entrypoint oficial hace `chown` del directorio de datos y eso normalmente exige root. No pasa: el volumen nombrado hereda el dueño del directorio dentro de la imagen (`postgres`, uid 70), así que el proceso puede escribir. Lo probé a propósito con `down -v` para partir de un volumen vacío, que es el caso que falla si algo está mal.
   - La imagen de la API no trae `ps`, así que para ver el usuario real del proceso tuve que leer `/proc/1/status` en vez de usar `ps`. Otra consecuencia de que sea una imagen mínima.
+
+### Reto 4: Red segmentada
+
+- **Decisión:** dos redes definidas en el compose, `frontend` y `backend`. `web` está solo en `frontend`, `db` solo en `backend`, y `api` es el único conectado a las dos. Solo `web` publica un puerto (`8080:8080`); `api` y `db` no publican ninguno.
+- **Alternativas que evalué:**
+  - *Una sola red (lo que tenía antes)*: simple, pero todos se ven entre todos. Comprobado: antes de este cambio, `docker compose exec web getent hosts db` devolvía la IP de la base. Si alguien compromete nginx, que es lo único expuesto a Internet, llega directo a Postgres.
+  - *Una red + `internal: true` para la base*: `internal` corta la salida a Internet del servicio, pero no impide que los contenedores de esa misma red se hablen. Resuelve otro problema (que la base no salga a la red), no el de este reto.
+  - *Reglas de firewall dentro de los contenedores*: habría que instalar y mantener iptables en cada imagen, con privilegios extra (`NET_ADMIN`). Contradice el Reto 3 y las imágenes mínimas.
+- **Por qué elegí esta:** es mínimo privilegio aplicado a la red y no depende de que ninguna imagen colabore. En Docker una red es un switch virtual: si `web` no está enchufado al mismo switch que `db`, no hay camino posible, y no depende del DNS ni de la configuración de nginx. La topología queda escrita en el compose, que es el mismo archivo que se revisa al calificar.
+- **Fuentes consultadas:**
+  - https://docs.docker.com/compose/how-tos/networking/
+  - https://docs.docker.com/reference/compose-file/networks/
+  - https://docs.docker.com/engine/network/drivers/bridge/
+  - https://docs.docker.com/reference/compose-file/services/#ports (diferencia entre `ports` y `expose`)
+- **Cómo lo verifiqué:**
+
+  ```text
+  # Criterio del enunciado
+  $ docker compose exec web getent hosts db     → sin salida, código 2 (no resuelve)
+  $ docker compose exec api getent hosts db     → 172.19.0.2   db  db
+  $ docker compose exec web getent hosts api    → resuelve (nginx necesita llegar a la API)
+
+  # Más fuerte que el DNS: tampoco hay ruta si uso la IP directa
+  $ docker compose exec web nc -z -w 3 172.19.0.2 5432    → falla (sin ruta)
+  $ docker compose exec api python -c "socket.create_connection(('172.19.0.2',5432),3)"  → conecta
+
+  # Puertos publicados hacia el host
+  $ docker compose ps
+  api   3000/tcp                      ← solo EXPOSE, no publicado
+  db    5432/tcp                      ← solo EXPOSE, no publicado
+  web   0.0.0.0:8080->8080/tcp        ← el único camino de entrada
+  $ curl localhost:3000 / localhost:5432 desde el host → cerrados
+  ```
+
+- **Qué no me funcionó / qué aprendí:**
+  - Al principio pensé que bastaba con no publicar puertos. No alcanza: sin publicar nada, `web` igual llegaba a `db` por la red interna, que es justo el camino que usaría un atacante que ya está dentro de nginx. Publicar puertos protege del host hacia afuera; las redes protegen de un contenedor a otro.
+  - La columna `PORTS` de `docker compose ps` muestra `3000/tcp` y `5432/tcp` aunque no estén publicados. Eso viene del `EXPOSE` del Dockerfile, que es solo documentación: lo que publica de verdad es `ports:` en el compose, y se distingue porque aparece con `0.0.0.0->`.
