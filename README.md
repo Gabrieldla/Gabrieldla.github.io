@@ -215,3 +215,40 @@ Cada push a `main` despliega automáticamente con GitHub Pages.
   - Las 22 vulnerabilidades de `db` no estaban en Postgres sino en **`gosu`**, un binario de Go que la imagen oficial usa para bajar de root a `postgres`. Trivy las reporta contra `stdlib`, la biblioteca estándar de Go con la que fue compilado. Como desde el Reto 3 el contenedor ya arranca como `postgres`, ese binario nunca se ejecuta, así que lo borré. La contrapartida, y hay que decirla: esa imagen ya no se puede correr como root.
   - Creía que "cero vulnerabilidades" era la meta. No lo es: el resultado de hoy es 0 con la base de datos de Trivy de hoy, y mañana aparece un CVE nuevo en la misma imagen sin que yo toque nada. Lo que vale es el proceso (escanear, entender el origen, decidir) y la fecha del escaneo.
   - La primera vez escaneé con `--severity CRITICAL,HIGH` y la tabla era tan larga que no se entendía nada. Sacando el JSON y contando por paquete se vio enseguida que 4 de cada 5 hallazgos eran del mismo grupo de paquetes del sistema, y ahí quedó claro que el problema era la base y no una dependencia mía.
+
+### Reto 6: Cero secretos… y aun así arranca solo
+
+- **Decisión:** el repositorio no contiene ninguna contraseña. `compose.yaml` toma las credenciales de un `.env` que está en `.gitignore`, y lo que sí se commitea es `.env.example`, con `POSTGRES_PASSWORD=` **vacío**. La contradicción con el B3 la resuelve `scripts/crear-env.sh`, que el devcontainer ejecuta en `postCreateCommand`: si no existe `.env`, lo genera con una contraseña aleatoria de 32 caracteres. Cada entorno nuevo (mi laptop, un Codespace mío, el Codespace del profesor) se fabrica su propia credencial y nunca sale de ahí.
+- **Alternativas que evalué:**
+  - *Secretos de Codespaces* (Settings → Codespaces → Secrets): es el mecanismo oficial y parecía la respuesta obvia, pero **están atados a mi cuenta**. Cuando el profesor cree un Codespace en mi repositorio para calificar, esos secretos no existen, `POSTGRES_PASSWORD` llega vacío y no arranca nada. Sirven para mis credenciales reales, no para que otro pueda levantar el proyecto.
+  - *Una contraseña de desarrollo escrita en `.env.example` o como valor por defecto en el compose* (`${POSTGRES_PASSWORD:-postgres}`): arranca en cualquier lado sin hacer nada, y es lo que hace mucha gente. Pero es exactamente lo que el enunciado descuenta con −5: una credencial en el repositorio. Y el hábito es el problema, porque el día que ese compose se copie a algo que sí mira Internet, la contraseña ya viene puesta.
+  - *Secretos de Compose* (`secrets:` + `POSTGRES_PASSWORD_FILE`): es lo correcto para producción, porque el valor llega por un archivo montado y no por una variable de entorno, que se ve en `docker inspect` y en `/proc/<pid>/environ`. Postgres lo soporta, pero la API del curso solo lee `DB_PASSWORD` como variable y no tiene versión `_FILE`, así que habría quedado a medias: la base con secreto de archivo y la API con variable. Preferí una sola forma coherente y explicarla.
+- **Por qué elegí esta:** cumple las dos condiciones a la vez, que es lo que el reto pide. Un Codespace recién creado arranca sin que nadie escriba nada, y aun así no hay ninguna contraseña en el repositorio ni en las capas de las imágenes. La credencial es de desarrollo y desechable: dura lo que dure ese entorno, y como la base de datos no publica puertos (Reto 4), solo es alcanzable desde la red interna de esa aplicación. Un secreto de producción se maneja distinto: gestor de secretos, rotación y auditoría, y en el LAB-03 esto se convierte en un `Secret` de Kubernetes.
+- **Fuentes consultadas:**
+  - https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/
+  - https://docs.docker.com/compose/how-tos/use-secrets/
+  - https://docs.github.com/es/codespaces/managing-your-codespaces/managing-your-account-specific-secrets-for-github-codespaces
+  - https://containers.dev/implementors/json_reference/ (`postCreateCommand` vs `postStartCommand`)
+- **Cómo lo verifiqué:**
+
+  ```text
+  $ git log --all --full-history -- .env
+  (sin salida: nunca estuvo en el historial)
+
+  $ git check-ignore -v .env
+  .gitignore:3:.env    .env
+
+  $ docker history --no-trunc perfil-api:latest | grep "<la contraseña>"    → 0 coincidencias
+    (igual en perfil-web y perfil-db)
+
+  $ docker inspect -f '{{json .Config.Env}}' perfil-api:latest
+  ["PATH=...","LANG=C.UTF-8","PYTHON_VERSION=3.12.14",...]   ← ninguna credencial
+
+  $ cat .env.example
+  POSTGRES_PASSWORD=          ← vacío, y el compose falla con un mensaje claro si no se define
+  ```
+
+- **Qué no me funcionó / qué aprendí:**
+  - `scripts/crear-env.sh` terminaba en silencio sin crear el archivo. La causa era `set -o pipefail` junto con `tr -dc ... < /dev/urandom | head -c 32`: cuando `head` corta la lectura, `tr` muere por SIGPIPE, el pipeline devuelve 141 y `set -e` aborta el script sin mensaje. Lo cambié por `head -c 24 /dev/urandom | base64`, donde ningún proceso queda escribiendo en una tubería cerrada.
+  - La contraseña **sí** es visible con `docker inspect` del **contenedor** y en `/proc/<pid>/environ` dentro de él. Eso no lo arregla este diseño y no hay que fingir que sí: lo que se evita es que viaje en el repositorio y en las imágenes. Para que tampoco esté en el entorno del proceso hace falta el enfoque de `secrets:` con archivos.
+  - El script tiene que ser idempotente. Si pisara un `.env` existente, cambiaría la contraseña mientras el volumen de Postgres conserva la vieja, y la API dejaría de autenticarse. Por eso, si `.env` existe, no lo toca.
