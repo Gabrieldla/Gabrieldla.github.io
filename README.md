@@ -17,9 +17,9 @@ Cada push a `main` despliega automáticamente con GitHub Pages.
 
 ### Reto 1: Imagen mínima
 
-- **Decisión:** Dockerfile de la API en dos etapas sobre `python:3.12.14-slim-trixie`. La etapa `build` instala las dependencias en un venv (`/opt/venv`) y después le quita `pip`. La etapa final solo recibe el venv y `app.py`.
+- **Decisión:** Dockerfile de la API en dos etapas. Empecé sobre `python:3.12.14-slim-trixie` y, tras medir en el Reto 5, la base final quedó en `python:3.12.14-alpine3.24` (99 MB y 0 CVE críticas/altas). La etapa `build` instala las dependencias en un venv (`/opt/venv`) y después le quita `pip`. La etapa final solo recibe el venv y `app.py`.
 - **Alternativas que evalué:**
-  - *`python:3.12-alpine`*: la base es más chica (~50 MB), pero usa musl en vez de glibc. Muchas librerías de Python no publican wheels para musl, y entonces pip las compila, lo que obliga a meter `gcc` y headers y termina dando builds lentos e imágenes más grandes. musl además cambia la resolución DNS y la asignación de memoria respecto de glibc.
+  - *`python:3.12-alpine`*: la base es mucho más chica, pero usa musl en vez de glibc. El riesgo conocido es que una librería no publique wheels para musl: entonces pip la compila y hay que meter `gcc` y headers, con builds lentos e imágenes más grandes. **Lo medí en vez de suponerlo:** para estas dependencias concretas (`flask`, `gunicorn`, `psycopg[binary]`) sí existen wheels musllinux y el build tarda 11 s sin ningún compilador. Por eso terminó siendo la base elegida en el Reto 5.
   - *Distroless (`gcr.io/distroless/python3-debian12`)*: no tiene shell ni gestor de paquetes, así que la superficie de ataque es mínima. Pero trae Python 3.11 (el de Debian 12) y el venv está construido con 3.12, así que no son compatibles. Y sin shell ni `whoami`, el comando de verificación del Reto 3 (`docker compose exec api whoami`) ni siquiera podría correr.
   - *Una sola etapa `slim` con `--no-cache-dir`*: pesaría casi lo mismo (~220 MB), pero `pip` y los archivos de instalación quedarían en la imagen final. El criterio pide dos etapas y que no haya herramientas de build.
 - **Por qué elegí esta:** `slim` usa glibc, así que `psycopg[binary]` y `gunicorn` se instalan como wheels precompiladas y no hace falta ningún compilador. Las dos etapas usan la misma base, así que el venv apunta al mismo `/usr/local/bin/python` en las dos. Y conserva `sh`, que hace falta para `exec` y para el healthcheck.
@@ -35,7 +35,8 @@ Cada push a `main` despliega automáticamente con GitHub Pages.
   $ docker images perfil-api
   REPOSITORY:TAG          SIZE
   perfil-api:ingenua      1.65GB     ← FROM python:3.12.14-trixie, una etapa
-  perfil-api:multistage   206MB      ← este Dockerfile (-87 %)
+  perfil-api:multistage   206MB      ← multi-stage sobre slim-trixie (-87 %)
+  perfil-api:alpine        99MB      ← base final, tras medir en el Reto 5 (-94 %)
 
   $ docker history perfil-api:multistage      (capas propias arriba, base abajo)
   CMD ["gunicorn" "-b" "0.0.0.0:3000" "app:app"]   0B
@@ -56,7 +57,8 @@ Cada push a `main` despliega automáticamente con GitHub Pages.
 - **Qué no me funcionó:**
   - La primera versión multi-stage pesaba 223 MB y todavía traía `pip` dentro de `/opt/venv`, porque `python -m venv` lo instala por defecto. Me di cuenta al revisar la imagen por dentro, no mirando el tamaño. Lo resolví desinstalándolo en la etapa `build`: 223 → 206 MB.
   - Esperaba que `dive` le diera mejor "eficiencia" a la imagen chica, y fue al revés: 99.3 % la ingenua contra 97.2 % la multi-stage. Aprendí que esa métrica mide archivos duplicados entre capas, no el tamaño total, así que no sirve para comparar el antes y el después de este reto.
-  - La imagen base todavía trae su propio `pip` en `/usr/local`. Lo dejé para el Reto 5, para medir con el escáner si quitarlo cambia algo.
+  - La imagen base todavía trae su propio `pip` en `/usr/local`. Lo dejé para el Reto 5 y al final no hizo falta tocarlo: el escáner no reportó nada por `pip`, y el cambio de base resolvió el problema real.
+  - Descarté Alpine por un motivo que resultó ser falso para este caso (que habría que compilar las dependencias). Al medirlo en el Reto 5 vi que no, y cambié la base. La lección es que "Alpine da problemas con Python" es un consejo general, no un hecho sobre mi aplicación: dependía de si mis tres dependencias publican wheels musllinux, y las publican.
 
 ### Reto 2: Arranque ordenado
 
@@ -171,3 +173,45 @@ Cada push a `main` despliega automáticamente con GitHub Pages.
 - **Qué no me funcionó / qué aprendí:**
   - Al principio pensé que bastaba con no publicar puertos. No alcanza: sin publicar nada, `web` igual llegaba a `db` por la red interna, que es justo el camino que usaría un atacante que ya está dentro de nginx. Publicar puertos protege del host hacia afuera; las redes protegen de un contenedor a otro.
   - La columna `PORTS` de `docker compose ps` muestra `3000/tcp` y `5432/tcp` aunque no estén publicados. Eso viene del `EXPOSE` del Dockerfile, que es solo documentación: lo que publica de verdad es `ports:` en el compose, y se distingue porque aparece con `0.0.0.0->`.
+
+### Reto 5: Escaneo de vulnerabilidades
+
+- **Decisión:** escaneo con Trivy las tres imágenes. El primer escaneo de `api` dio 44 vulnerabilidades altas, **todas sin parche disponible**, así que actualizar paquetes no servía de nada: venían de la base Debian. Cambié la base a Alpine y quité el binario `gosu` de la imagen de la base de datos. Las tres imágenes quedaron en 0 críticas y 0 altas.
+- **Alternativas que evalué:**
+  - *Actualizar los paquetes del sistema* (`apt-get upgrade` en el Dockerfile): era lo primero que pensé, pero las 44 vulnerabilidades tenían `FixedVersion` vacío, es decir que Debian todavía no publica corrección. Además hace la imagen no reproducible: el mismo Dockerfile da imágenes distintas según el día.
+  - *Quedarme en Debian y aceptar los hallazgos*: defendible, porque casi todos los CVE eran de `util-linux`, `ncurses` y `perl-base`, paquetes que mi aplicación nunca ejecuta. Pero seguían en la imagen y cualquiera que la escanee los ve.
+  - *Cambiar a `slim-bookworm`*: lo medí y fue peor: 60 hallazgos, 5 de ellos críticos, y 215 MB.
+  - *Distroless*: menos superficie todavía, pero el Python de Debian 12 es 3.11 y rompe el venv, y sin shell no podría cumplir la verificación del Reto 3.
+- **Por qué elegí esta:** el problema no era una vulnerabilidad puntual sino **cuántos paquetes arrastra la base**. Alpine trae BusyBox en vez de `util-linux`, `perl` y `systemd`, así que esos CVE no existen porque el software directamente no está. Es la diferencia entre parchear y no instalar. Y de paso la imagen bajó de 206 MB a 99 MB.
+- **Fuentes consultadas:**
+  - https://trivy.dev/latest/docs/target/container_image/
+  - https://avd.aquasec.com/nvd/cve-2026-76642
+  - https://www.first.org/cvss/ (cómo se lee la severidad)
+  - https://github.com/tianon/gosu (para qué sirve y cuándo hace falta)
+- **Una vulnerabilidad concreta:** `CVE-2026-76642`, severidad HIGH, en el paquete `util-linux` (versión `1:2.41.5-0+deb13u1`), presente en la imagen porque es parte de la base Debian, no porque yo la instale. util-linux no verifica el código de salida del *mount helper* antes de correr los hooks de post-montaje, y un usuario sin privilegios puede aprovechar `X-mount.idmap` o `X-mount.owner` para terminar escalando privilegios. Estado en Debian: `affected`, **sin parche publicado**. No la resolví parcheando, porque no había parche: la eliminé cambiando a una base que no incluye `util-linux`. Aun con parche, el riesgo real en mi contenedor era bajo, porque la API no monta sistemas de archivos y corre como usuario sin privilegios; pero eso reduce el impacto, no la presencia del paquete.
+- **Cómo lo verifiqué:**
+
+  ```text
+  ANTES                                          DESPUÉS
+  api  (slim-trixie)  44 HIGH, 0 CRITICAL        api  (alpine3.24)   0 HIGH, 0 CRITICAL
+  web  (nginx-unprivileged alpine)  0 / 0        web                 0 / 0  (sin cambios)
+  db   (postgres alpine)  21 HIGH, 1 CRITICAL    db   (sin gosu)     0 HIGH, 0 CRITICAL
+
+  # Comparación de bases que hice antes de decidir:
+  base                    tamaño   CRITICAL+HIGH
+  python:3.12.14-slim-trixie   206 MB      44
+  python:3.12.14-slim-bookworm 215 MB      60   ← peor
+  python:3.12.14-alpine3.24     99 MB       0   ← elegida
+
+  $ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.74.0 \
+      image --scanners vuln --severity CRITICAL,HIGH perfil-api:latest
+  (sin hallazgos)
+
+  # Y después del cambio, los criterios de los retos anteriores siguen pasando:
+  compose ps → los tres healthy | whoami → nginx/app/postgres | web no resuelve db
+  ```
+
+- **Qué no me funcionó / qué aprendí:**
+  - Las 22 vulnerabilidades de `db` no estaban en Postgres sino en **`gosu`**, un binario de Go que la imagen oficial usa para bajar de root a `postgres`. Trivy las reporta contra `stdlib`, la biblioteca estándar de Go con la que fue compilado. Como desde el Reto 3 el contenedor ya arranca como `postgres`, ese binario nunca se ejecuta, así que lo borré. La contrapartida, y hay que decirla: esa imagen ya no se puede correr como root.
+  - Creía que "cero vulnerabilidades" era la meta. No lo es: el resultado de hoy es 0 con la base de datos de Trivy de hoy, y mañana aparece un CVE nuevo en la misma imagen sin que yo toque nada. Lo que vale es el proceso (escanear, entender el origen, decidir) y la fecha del escaneo.
+  - La primera vez escaneé con `--severity CRITICAL,HIGH` y la tabla era tan larga que no se entendía nada. Sacando el JSON y contando por paquete se vio enseguida que 4 de cada 5 hallazgos eran del mismo grupo de paquetes del sistema, y ahí quedó claro que el problema era la base y no una dependencia mía.
