@@ -22,9 +22,16 @@ ENV PATH=/opt/venv/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
+# Usuario sin privilegios: si alguien escapa del proceso, no es root dentro del contenedor.
+# --system: sin contraseña ni directorio home. Los archivos siguen siendo de root y este
+# usuario solo puede leerlos, así que el proceso no puede modificar su propio código.
+RUN useradd --system --uid 10001 --user-group --no-create-home app
+
 WORKDIR /app
 COPY --from=build /opt/venv /opt/venv
 COPY app.py .
+
+USER app
 
 EXPOSE 3000
 # La imagen no tiene curl ni wget: el chequeo usa urllib de la librería estándar.
