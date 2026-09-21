@@ -19,6 +19,11 @@ RUN pip install -r requirements.txt \
 # De la etapa anterior solo se trae el venv: nada de caché de pip ni archivos temporales.
 FROM python:3.12.14-alpine3.24
 
+# Conecta la imagen con su repositorio: la página del paquete en GHCR muestra el README
+# y enlaza al código. Sin esta etiqueta el paquete queda suelto en la cuenta.
+LABEL org.opencontainers.image.source="https://github.com/Gabrieldla/Gabrieldla.github.io"
+LABEL org.opencontainers.image.description="API del libro de visitas del perfil, en Python con Flask y gunicorn. LAB-02 de IF-1116."
+
 ENV PATH=/opt/venv/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
