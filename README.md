@@ -1,17 +1,67 @@
 # Perfil — Gabriel De la Rivera
 
-Sitio personal publicado en https://gabrieldla.github.io
+Sitio personal publicado en https://gabrieldla.github.io y, desde el LAB-02, una aplicación de tres servicios en contenedores con un libro de visitas.
 
-## Cómo se publica
-Cada push a `main` despliega automáticamente con GitHub Pages.
+## Arquitectura
+
+| Servicio | Qué hace | Imagen |
+|---|---|---|
+| `web` | nginx: sirve el perfil y hace de reverse proxy de `/api/` hacia la API | `ghcr.io/gabrieldla/perfil-web:1.0` |
+| `api` | Libro de visitas en Python (Flask + gunicorn) | `ghcr.io/gabrieldla/perfil-api:1.0` |
+| `db` | Postgres 16 con las tablas del libro de visitas y un volumen para los datos | se construye en local |
+
+Dos redes: `web` solo ve a `api`, y solo `api` ve a `db`. **`web` es el único servicio que publica un puerto** hacia el host.
+
+```
+navegador ──8080──▶ web ──/api/──▶ api ──▶ db ──▶ volumen datos-db
+                    └─ red frontend ─┘   └─ red backend ─┘
+```
+
+## Cómo arrancarlo en local
+
+Necesitas Docker y Docker Compose (yo uso Rancher Desktop con el motor dockerd/moby).
+
+```bash
+bash scripts/crear-env.sh          # crea .env con una contraseña aleatoria (solo la primera vez)
+docker compose up -d --build --wait
+```
+
+Cuando el comando termina, los tres servicios están sanos. Abre **http://localhost:8080**.
+
+```bash
+docker compose ps        # estado y salud de los tres servicios
+docker compose logs -f   # logs
+docker compose down      # apaga, conservando los mensajes
+docker compose down -v   # apaga y BORRA el volumen: la base se reinicializa desde db/init/
+```
+
+## En GitHub Codespaces
+
+`Code → Codespaces → Create codespace on main`. No hay que escribir ningún comando: el dev container genera el `.env`, levanta los tres servicios con `--wait` y abre la vista previa del puerto 8080 cuando todo está sano.
+
+## Las imágenes
+
+```bash
+docker pull ghcr.io/gabrieldla/perfil-web:1.0
+docker pull ghcr.io/gabrieldla/perfil-api:1.0
+```
+
+Tag fijo `1.0`, nunca `latest`. La de `db` no se publica porque solo agrega los scripts de `init/` sobre la imagen oficial de Postgres.
+
+## Cómo se publica la página
+
+Cada push a `main` despliega `index.html` con GitHub Pages. Ahí no hay backend: `libro-de-visitas.js` consulta `/api/mensajes` y, si no responde, deja la sección oculta y el resto del perfil se ve igual que siempre.
 
 ## Flujo de trabajo
+
 - `main` protegida; todo cambio entra por pull request
-- Una rama por cambio: `feature/*`, `fix/*`
+- Una rama por cambio: `feature/*`, `fix/*`, `docs/*`, `reto/*`
 - Mensajes de commit en imperativo, ≤ 50 caracteres
 
 ## Historial del curso
+
 - **S02** — Sitio inicial, ramas y pull requests
+- **S03** — Libro de visitas en tres contenedores, Compose, Codespaces y los seis retos
 
 ## Bitácora de decisiones (LAB-02)
 
