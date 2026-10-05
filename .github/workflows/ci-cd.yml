@@ -86,10 +86,42 @@ jobs:
           pip install -r requirements.txt -r requirements-dev.txt
           python -m pytest tests -q
 
+  # ─────────────── 3b. INTEGRACIÓN con Compose (Reto 3) ───────────────
+  # Vitest prueba el sitio y pytest la validación de la API, pero por separado.
+  # Esto levanta la aplicación entera y prueba el contrato entrando por nginx.
+  integracion:
+    name: Integración con Compose
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      # El runner no tiene mi .env, igual que un Codespace recién creado: el mismo
+      # script del LAB-02 le genera uno con una contraseña aleatoria.
+      - name: Generar el .env
+        run: bash scripts/crear-env.sh
+
+      - name: Levantar los tres servicios
+        run: docker compose up -d --build --wait
+
+      - name: Probar el contrato de la API a través de nginx
+        run: bash scripts/probar-integracion.sh
+
+      # Sin esto, un fallo deja un log inútil. Con esto se ve qué contenedor murió.
+      - name: Logs de los contenedores si algo falló
+        if: failure()
+        run: docker compose logs --tail 50
+
+      - name: Apagar
+        if: always()
+        run: docker compose down -v
+
   # ─────────────────────────── 4. PACKAGE ───────────────────────────
   package:
     name: Publicar imagen
-    needs: test
+    needs: [test, integracion]
     runs-on: ubuntu-latest
     permissions:
       contents: read
