@@ -1,0 +1,28 @@
+{
+  "name": "gabrieldla.github.io",
+  "version": "1.0.0",
+  "description": "Sitio personal publicado en https://gabrieldla.github.io y, desde el LAB-02, una aplicación de tres servicios en contenedores con un libro de visitas.",
+  "main": "libro-de-visitas.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "vitest run tests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Gabrieldla/Gabrieldla.github.io.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Gabrieldla/Gabrieldla.github.io/issues"
+  },
+  "homepage": "https://github.com/Gabrieldla/Gabrieldla.github.io#readme",
+  "devDependencies": {
+    "jsdom": "^29.1.1",
+    "vitest": "^5.0.3"
+  },
+  "type": "module"
+}
