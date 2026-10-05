@@ -3,3 +3,6 @@ Thumbs.db
 .env
 node_modules/
 _site/
+__pycache__/
+*.pyc
+.pytest_cache/
