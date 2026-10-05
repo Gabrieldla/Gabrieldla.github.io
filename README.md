@@ -328,3 +328,76 @@ Cada push a `main` despliega `index.html` con GitHub Pages. Ahí no hay backend:
   - La contraseña **sí** es visible con `docker inspect` del **contenedor** y en `/proc/<pid>/environ` dentro de él. Eso no lo arregla este diseño y no hay que fingir que sí: lo que se evita es que viaje en el repositorio y en las imágenes. Para que tampoco esté en el entorno del proceso hace falta el enfoque de `secrets:` con archivos.
   - El script tiene que ser idempotente. Si pisara un `.env` existente, cambiaría la contraseña mientras el volumen de Postgres conserva la vieja, y la API dejaría de autenticarse. Por eso, si `.env` existe, no lo toca.
   - Probé el arranque automático clonando el repositorio en una carpeta nueva, como haría un Codespace, y **falló**: la API quedaba `unhealthy` con `password authentication failed for user "app"`. La causa no era el script sino Postgres: la contraseña se fija **solo** cuando se inicializa un volumen vacío, y después `POSTGRES_PASSWORD` se ignora. Mi clon generó un `.env` nuevo, pero reutilizaba el volumen `perfil_datos-db` del clon anterior, que tenía la contraseña vieja. Con `docker compose down -v` (volumen nuevo, que es la situación real de un Codespace recién creado) arrancó todo en 19 s. Agregué un aviso en `scripts/crear-env.sh` para que, si detecta un volumen previo, lo diga en vez de fallar con un error críptico.
+
+## Bitácora de decisiones (LAB-03)
+
+### Cómo le llega `_site/` al job `test` (pregunta del B3)
+
+- **Decisión:** `scripts/armar-sitio.sh` lo arma, y los jobs `build` y `test` lo ejecutan por separado sobre el mismo commit.
+- **Alternativas que evalué:**
+  - *Pasar la carpeta con `upload-artifact` y `download-artifact`*: es la respuesta de manual y garantiza que los bytes probados son los mismos. Pero `build` ya sube el artefacto de Pages, que tiene un formato propio (un `.tar` que `deploy-pages` entiende), así que habría que subir una segunda copia del sitio solo para `test`: más tiempo y dos artefactos que mantener sincronizados.
+  - *Probar los archivos del repositorio en vez de `_site/`*: sería más simple, pero probaría una cosa y publicaría otra. Justo el error que el enunciado avisa.
+- **Por qué elegí esta:** el script es determinista (copia tres archivos concretos) y los dos jobs parten del mismo checkout, así que el resultado es idéntico. Y si alguien cambia qué se publica, lo cambia en un solo sitio y los dos jobs se enteran a la vez.
+- **Fuentes:** https://github.com/actions/upload-pages-artifact, https://docs.github.com/actions/using-workflows/storing-workflow-data-as-artifacts
+- **Cómo lo verifiqué:** la prueba `no incluye archivos internos del repositorio` falla si `_site/` trae `compose.yaml`, `api/`, `db/`, `.env.example` o `tests/`. Y en producción, `https://gabrieldla.github.io/compose.yaml` devuelve 404.
+- **Qué no me funcionó:** mi primera idea fue montar `_site/` solo en `build`. El job `test` fallaba con "falta estilos.css" porque esa carpeta no existe en un runner nuevo: cada job arranca en una máquina distinta y no hereda nada del anterior.
+
+### Reto 4: Mínimo privilegio y cadena de suministro
+
+- **Decisión:** el workflow arranca con `permissions: contents: read` y cada job pide solo lo suyo (`packages: write` únicamente en `package`, `security-events: write` solo donde se suben los SARIF, `pages: write` e `id-token: write` solo en `deploy-prod`). Todas las acciones de terceros van fijadas con el SHA completo del commit, y Dependabot vigila que no se queden atrás.
+- **Alternativas que evalué:**
+  - *Permisos globales al principio del workflow*: una sola línea y listo, pero entonces cualquier job, incluido uno que solo corre linters, podría publicar paquetes o escribir en el repositorio. Si una acción de terceros estuviera comprometida, tendría todos esos permisos.
+  - *Fijar las acciones con tag (`@v4`)*: es lo cómodo y lo que hace casi todo el mundo. El problema es que un tag de Git es un puntero que se puede mover: quien controle el repositorio de la acción puede apuntar `v4` a otro código. Es exactamente lo que pasó con `tj-actions/changed-files` en marzo de 2025. Un SHA es el hash del contenido: no se puede mover sin cambiar el SHA.
+- **Por qué elegí esta:** el SHA hace la acción inmutable, y Dependabot resuelve el efecto secundario (que se quede congelada en una versión vieja) abriendo un PR cuando sale una nueva. Inmutable y al día a la vez.
+- **Fuentes:**
+  - https://docs.github.com/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions
+  - https://www.cve.org/CVERecord?id=CVE-2025-30066 (el incidente de tj-actions)
+  - https://docs.github.com/code-security/dependabot/working-with-dependabot/keeping-your-actions-up-to-date-with-dependabot
+- **Cómo lo verifiqué:** `grep -c "uses:.*@[0-9a-f]\{40\}" .github/workflows/ci-cd.yml` devuelve todas las acciones del workflow, y no hay ninguna con tag. Dependabot abrió 13 pull requests la primera noche, lo que demuestra que está mirando.
+- **Qué no me funcionó / qué aprendí:** Semgrep me marcó `dependabot-missing-cooldown`: yo tenía Dependabot proponiendo actualizaciones **el mismo día** en que una versión se publica, que es justo el peor momento si esa versión viene comprometida. Agregué `cooldown` con 7 días por defecto y más para los saltos de versión mayor. Y de paso aprendí algo sobre las reglas de SAST: puse 5 días y la regla seguía marcando, porque no comprueba que exista un cooldown, busca literalmente `default-days: 7`. La protección estaba puesta y el análisis seguía en rojo.
+
+### Reto 2: SAST y resultados a la vista
+
+- **Decisión:** dos análisis que miran cosas distintas. **Trivy** revisa lo que heredo (el sistema operativo y las librerías de las imágenes) y **Semgrep** revisa lo que escribo (mi Python y mi JavaScript). Los dos publican en formato SARIF y los hallazgos aparecen en *Security → Code scanning*.
+- **Alternativas que evalué:**
+  - *CodeQL*: es el SAST nativo de GitHub, entiende Python y JavaScript y se integra sin esfuerzo. Lo descarté por tiempo de ejecución: compila el código a una base de datos propia y tarda varios minutos, lo que choca de frente con el Reto 1. Semgrep hace su pasada en segundos.
+  - *Bandit*: muy bueno para Python, pero solo Python. Mi repositorio también tiene JavaScript, la configuración de Dependabot y los workflows, y Semgrep los cubre todos con los paquetes `p/default` y `p/secrets`.
+  - *Hacer que el SAST frene el pipeline ante cualquier hallazgo*: lo pensé y lo descarté. El único hallazgo real que queda es un `app.run(host="0.0.0.0")` en un bloque que solo corre fuera del contenedor. Frenar por eso enseña a la gente a poner `continue-on-error`, que es peor que no tener la herramienta.
+- **Por qué elegí esta:** son capas complementarias, no redundantes. Trivy jamás vería un fallo en mi código y Semgrep jamás vería un CVE en una librería del sistema. Y publicando en SARIF los dos resultados viven en el mismo panel, que es donde alguien los va a mirar de verdad.
+- **Una decisión que vale la pena explicar:** los escaneos **informativos** no aplican `.trivyignore` y la **compuerta** sí. El panel muestra todo lo que existe; la decisión de frenar respeta las excepciones documentadas. Si el informe también filtrara, las vulnerabilidades aceptadas desaparecerían de la vista y "aceptar" se convertiría en "esconder", que es exactamente lo que el enunciado pregunta.
+- **Lo que acepté y por qué:** 5 CVE de severidad media, todas en el `pip` de la imagen base de la API. Nunca se ejecuta: las dependencias se instalan en la etapa de build, en un venv al que además le quito pip, y el contenedor arranca gunicorn como usuario sin privilegios. Para explotarlas haría falta correr `pip install` sobre un paquete malicioso dentro del contenedor en marcha, y no hay nada que invoque pip. Están en `.trivyignore` con el motivo y la fecha de revisión.
+- **Fuentes:** https://semgrep.dev/docs/, https://docs.github.com/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning, https://trivy.dev/latest/docs/configuration/filtering/
+- **Cómo lo verifiqué:** `Security → Code scanning` muestra tres análisis: Semgrep (1 hallazgo), Trivy en perfil-api (2) y Trivy en perfil-web (0).
+- **Qué no me funcionó:** subí los dos informes de Trivy con `sarif_file: .` y una sola categoría. CodeQL lo rechazó: desde julio de 2025 ya no combina varios análisis en la misma categoría. Hubo que subir uno por categoría (`trivy-web` y `trivy-api`), que además es mejor, porque ahora en el panel se distingue qué hallazgo viene de qué imagen. Y la subida de Semgrep, que tenía `if: always()`, falló con "Path does not exist" cuando el paso que genera el archivo se saltó: `always()` no significa que los archivos existan.
+
+### Reto 3: Pruebas de integración con Compose
+
+- **Decisión:** un job `integracion` que levanta los tres servicios con `docker compose up -d --wait` y prueba el contrato **entrando por nginx**, no llamando a la API directamente.
+- **Alternativas que evalué:**
+  - *Escribir estas pruebas en Vitest con `fetch`*: me habría dado un solo framework de pruebas y mejores mensajes de error. Pero habría metido una dependencia de Node en un job cuya gracia es que no depende del lenguaje: lo que se prueba es HTTP, y `curl` habla HTTP sin instalar nada.
+  - *Probar la API directamente en el puerto 3000*: más simple, pero se saltaría nginx, que es justo la pieza que más veces se configura mal. Entrando por el 8080 se prueba también el reverse proxy.
+- **Por qué elegí esta:** cubre el hueco que dejan las otras dos suites. Vitest prueba HTML y pytest prueba la validación de la API con la base apagada; ninguna de las dos se entera si el `proxy_pass` apunta mal, si las redes están mal puestas o si las credenciales no coinciden. La prueba de que el mensaje creado aparece después en la lista es la que demuestra que el dato llegó hasta Postgres y volvió.
+- **Fuentes:** https://docs.docker.com/compose/how-tos/, https://docs.github.com/actions/using-jobs/using-conditions-to-control-job-execution
+- **Cómo lo verifiqué:** el job pasa las 6 comprobaciones del contrato. Con `if: failure()` muestra `docker compose logs` solo cuando algo se rompe, para no llenar de ruido los runs en verde.
+- **Qué no me funcionó:** el runner no tiene mi `.env`, igual que un Codespace recién creado. Lo resolví reutilizando `scripts/crear-env.sh` del LAB-02, que genera uno con contraseña aleatoria. Y al escribir el script de pruebas me topé con que `curl -o /dev/null` falla en Git Bash con el código 23 aunque la petición funcione: lo reescribí para capturar cuerpo y código en una sola llamada, sin `-o`, y así corre igual en mi Windows y en el runner Linux.
+
+### Reto 5: Revisar producción y volver atrás
+
+- **Decisión:** después de `deploy-pages`, un paso ejecuta `scripts/verificar-produccion.sh` contra la URL que devuelve el propio despliegue (`steps.deployment.outputs.page_url`). Comprueba seis cosas: que responde 200, que aparece mi nombre, que el libro de visitas sigue oculto, y que `compose.yaml`, `.env.example` y `api/app.py` dan 404.
+- **Alternativas que evalué:**
+  - *Fiarme del estado verde de `deploy-pages`*: ese job solo confirma que GitHub aceptó el artefacto. Si yo subiera una carpeta `_site/` vacía, terminaría en verde igual y el sitio quedaría roto.
+  - *Comprobar solo el código 200*: detecta que el servidor responde, no que responde **lo mío**. Por eso también busco mi nombre en el HTML: si se publicara el sitio de otro commit o un index equivocado, el 200 seguiría estando.
+- **Por qué elegí esta:** verifica el resultado donde lo ve el usuario, no donde lo ve el pipeline. Y la comprobación de que el libro de visitas arranca oculto es la que protege la regla del LAB-02: en Pages no hay `/api`, así que si alguien le quitara el `hidden`, el visitante vería un formulario que no funciona.
+- **Cómo vuelvo atrás si algo sale mal:** con `git revert` del commit que rompió, y dejando que el pipeline despliegue la versión corregida. Es más lento que reutilizar un despliegue viejo, pero es el único camino que respeta la idea de que **todo pasa por el pipeline**: el revert se construye, se prueba, se escanea y se aprueba igual que cualquier otro cambio, y el historial cuenta la verdad de lo que pasó. Reutilizar un artefacto antiguo dejaría producción en un estado que no corresponde a ningún commit de `main`, y a la siguiente fusión volvería el error.
+- **Fuentes:** https://github.com/actions/deploy-pages, https://docs.github.com/actions/deployment/about-deployments/deploying-with-github-actions
+- **Qué aprendí:** Pages tarda unos segundos en servir la versión nueva, así que la verificación reintenta hasta 12 veces antes de rendirse. Sin reintentos, el paso fallaba de forma intermitente y eso es peor que no tenerlo: una comprobación que falla a veces se acaba ignorando.
+
+### Reto 6: El pipeline se explica solo
+
+- **Decisión:** cada run escribe en `$GITHUB_STEP_SUMMARY` dos tablas: el resultado de Vitest y pytest, y las vulnerabilidades por severidad sacadas de los SARIF. El README lleva el badge del workflow.
+- **Alternativas que evalué:**
+  - *Dejar que quien aprueba abra los logs*: son siete jobs; encontrar el número de vulnerabilidades obliga a abrir el log de `security` y leer una tabla larga. Si aprobar cuesta trabajo, se aprueba sin mirar.
+  - *Publicar el resumen como comentario en el PR*: se ve antes, pero ensucia la conversación y no sirve en los push a `main`, que es justo cuando hay que aprobar un despliegue.
+- **Por qué elegí esta:** el resumen vive en la misma página donde está el botón de aprobar. Quien va a autorizar el paso a producción ve, sin moverse, cuántas pruebas pasaron y cuántas vulnerabilidades hay de cada gravedad.
+- **Fuentes:** https://docs.github.com/actions/using-workflows/workflow-commands-for-github-actions#adding-a-job-summary
+- **Cómo lo verifiqué:** probé el script del resumen en local con un SARIF de ejemplo antes de subirlo, para no gastar un run averiguando si el heredoc de Python estaba bien indentado dentro del YAML.
