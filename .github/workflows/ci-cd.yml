@@ -139,7 +139,10 @@ jobs:
   # ─────────────────────────── 4. PACKAGE ───────────────────────────
   package:
     name: Publicar imagen
-    needs: [test, integracion]
+    # Antes esperaba también a integracion. Publicar una imagen no es desplegarla:
+    # si la integración falla, la compuerta de producción lo frena igual, y mientras
+    # tanto el pipeline avanza (Reto 1).
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -354,7 +357,10 @@ jobs:
   # ─────────────────────────── 7. SMOKE ───────────────────────────
   smoke:
     name: Smoke test
-    needs: security
+    # Corre a la vez que security: las dos miran la misma imagen ya publicada y no
+    # dependen entre sí. Nada llega a producción sin las dos, porque deploy-prod las
+    # necesita a ambas: adelantar trabajo no es saltarse una compuerta.
+    needs: package
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -406,7 +412,7 @@ jobs:
     name: Desplegar a producción
     # El SAST corre en paralelo, pero sigue siendo una compuerta: si encuentra algo
     # que rompa el job, a producción no se llega.
-    needs: [smoke, sast]
+    needs: [smoke, security, sast, integracion]
     # Un pull request nunca despliega: solo el merge a main.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
