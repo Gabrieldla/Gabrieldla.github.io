@@ -210,12 +210,21 @@ jobs:
           output: trivy-api.sarif
           severity: CRITICAL,HIGH,MEDIUM
 
-      - name: Publicar los hallazgos de Trivy
-        if: always()
+      # Un informe por categoría: CodeQL ya no admite combinar varios en una sola,
+      # y así en Code scanning se distingue qué hallazgo viene de qué imagen.
+      - name: Publicar los hallazgos de Trivy (web)
+        if: always() && hashFiles('trivy-web.sarif') != ''
         uses: github/codeql-action/upload-sarif@7999b86c43a865dc79d8923397f35af22de63401 # v4
         with:
-          sarif_file: .
-          category: trivy
+          sarif_file: trivy-web.sarif
+          category: trivy-web
+
+      - name: Publicar los hallazgos de Trivy (api)
+        if: always() && hashFiles('trivy-api.sarif') != ''
+        uses: github/codeql-action/upload-sarif@7999b86c43a865dc79d8923397f35af22de63401 # v4
+        with:
+          sarif_file: trivy-api.sarif
+          category: trivy-api
 
       # ── SAST: mi propio código ──
       - name: Semgrep sobre mi código
@@ -225,7 +234,7 @@ jobs:
           --sarif --output=semgrep.sarif --metrics=off --no-git-ignore .
 
       - name: Publicar los hallazgos de Semgrep
-        if: always()
+        if: always() && hashFiles('semgrep.sarif') != ''
         uses: github/codeql-action/upload-sarif@7999b86c43a865dc79d8923397f35af22de63401 # v4
         with:
           sarif_file: semgrep.sarif
