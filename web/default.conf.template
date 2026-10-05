@@ -19,9 +19,16 @@ server {
     }
 
     # Reverse proxy: el navegador solo habla con nginx, y nginx le pasa /api/ a la API.
-    # Sin URI después del puerto, la ruta /api/... llega tal cual al backend.
+    #
+    # El nombre "api" va dentro de una VARIABLE a propósito. Con proxy_pass directo,
+    # nginx resuelve el nombre al arrancar y, si la API no existe todavía, se niega a
+    # iniciar y tumba el sitio entero. Con una variable lo resuelve en cada petición:
+    # el perfil se sirve igual y /api/ devuelve 502 hasta que la API vuelva.
+    # El resolver lo rellena el entrypoint de la imagen a partir de /etc/resolv.conf.
     location /api/ {
-        proxy_pass http://api:3000;
+        resolver ${NGINX_LOCAL_RESOLVERS} valid=10s;
+        set $destino_api http://api:3000;
+        proxy_pass $destino_api;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
