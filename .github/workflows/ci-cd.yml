@@ -30,6 +30,7 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '20'
+          cache: npm          # reutiliza ~/.npm entre runs (Reto 1)
       - run: npm ci
 
       - name: Lint del HTML (HTMLHint)
@@ -68,6 +69,7 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '20'
+          cache: npm          # reutiliza ~/.npm entre runs (Reto 1)
       - run: npm ci
 
       # El mismo script que usó build: se prueba exactamente lo que se publica.
@@ -80,6 +82,8 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: api/requirements*.txt
       - name: Pruebas de la API (pytest)
         working-directory: api
         run: |
@@ -135,7 +139,10 @@ jobs:
   # ─────────────────────────── 4. PACKAGE ───────────────────────────
   package:
     name: Publicar imagen
-    needs: [test, integracion]
+    # Antes esperaba también a integracion. Publicar una imagen no es desplegarla:
+    # si la integración falla, la compuerta de producción lo frena igual, y mientras
+    # tanto el pipeline avanza (Reto 1).
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -153,6 +160,10 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       # Se publica con el GITHUB_TOKEN del propio workflow: sin tokens personales.
+      # El driver por defecto de buildx no sabe exportar caché: hace falta el driver
+      # docker-container, que es lo que instala esta acción (Reto 1).
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ${{ env.REGISTRO }}
@@ -174,19 +185,25 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Reutiliza las capas del run anterior: si solo cambió el HTML, no se
+          # vuelve a instalar nada (Reto 1).
+          cache-from: type=gha,scope=${{ matrix.imagen }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.imagen }}
 
   # ─────────────────────────── 5. SECURITY ───────────────────────────
-  # Dos capas distintas: Trivy revisa lo que HEREDO (sistema operativo y librerías de
-  # las imágenes) y Semgrep revisa lo que ESCRIBO (mi Python y mi JavaScript).
-  # Los hallazgos de ambos se publican en Security → Code scanning (Reto 2).
+  # Trivy revisa lo que HEREDO: el sistema operativo y las librerías de las imágenes.
+  # Una copia del job por imagen, para que las dos se escaneen a la vez (Reto 1).
   security:
-    name: Escaneo y SAST
+    name: Escaneo de imagen
     needs: package
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read          # descargar las imágenes, no publicarlas
-      security-events: write  # subir los informes SARIF a Code scanning
+      packages: read          # descargar la imagen, no publicarla
+      security-events: write  # subir el informe SARIF a Code scanning
+    strategy:
+      matrix:
+        imagen: [perfil-web, perfil-api]
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
@@ -194,8 +211,11 @@ jobs:
         env:
           PROPIETARIO: ${{ github.repository_owner }}
         run: |
-          echo "TAG=sha-${GITHUB_SHA:0:7}" >> "$GITHUB_ENV"
-          echo "DUENIO=${PROPIETARIO,,}" >> "$GITHUB_ENV"
+          {
+            echo "TAG=sha-${GITHUB_SHA:0:7}"
+            echo "DUENIO=${PROPIETARIO,,}"
+            echo "TRIVY_CACHE_DIR=${GITHUB_WORKSPACE}/.cache/trivy"
+          } >> "$GITHUB_ENV"
 
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
@@ -203,64 +223,37 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # ── Trivy: informe completo para Code scanning ──
-      # exit-code 0 a propósito: este paso informa, no decide. Quien decide es el paso
-      # siguiente. Así el informe se sube aunque después el pipeline se frene.
-      - name: Trivy sobre perfil-web (informe)
+      # La base de datos de vulnerabilidades pesa cientos de MB. Se guarda entre runs
+      # para no descargarla cada vez (Reto 1).
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ github.workspace }}/.cache/trivy
+          key: trivy-db-${{ matrix.imagen }}-${{ github.run_id }}
+          restore-keys: trivy-db-${{ matrix.imagen }}-
+
+      # ── Informe completo para Code scanning ──
+      # exit-code 0 a propósito: este paso informa, no decide. Y NO aplica
+      # .trivyignore: el panel muestra todo lo que hay, incluso lo aceptado.
+      - name: Trivy sobre ${{ matrix.imagen }} (informe)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ env.REGISTRO }}/${{ env.DUENIO }}/perfil-web:${{ env.TAG }}
+          image-ref: ${{ env.REGISTRO }}/${{ env.DUENIO }}/${{ matrix.imagen }}:${{ env.TAG }}
           scan-type: image
           format: sarif
-          output: trivy-web.sarif
+          output: trivy.sarif
           severity: CRITICAL,HIGH,MEDIUM
 
-      - name: Trivy sobre perfil-api (informe)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ env.REGISTRO }}/${{ env.DUENIO }}/perfil-api:${{ env.TAG }}
-          scan-type: image
-          format: sarif
-          output: trivy-api.sarif
-          severity: CRITICAL,HIGH,MEDIUM
-
-      # Un informe por categoría: CodeQL ya no admite combinar varios en una sola,
-      # y así en Code scanning se distingue qué hallazgo viene de qué imagen.
-      - name: Publicar los hallazgos de Trivy (web)
-        if: always() && hashFiles('trivy-web.sarif') != ''
+      - name: Publicar los hallazgos
+        if: always() && hashFiles('trivy.sarif') != ''
         uses: github/codeql-action/upload-sarif@7999b86c43a865dc79d8923397f35af22de63401 # v4
         with:
-          sarif_file: trivy-web.sarif
-          category: trivy-web
+          sarif_file: trivy.sarif
+          category: trivy-${{ matrix.imagen }}
 
-      - name: Publicar los hallazgos de Trivy (api)
-        if: always() && hashFiles('trivy-api.sarif') != ''
-        uses: github/codeql-action/upload-sarif@7999b86c43a865dc79d8923397f35af22de63401 # v4
-        with:
-          sarif_file: trivy-api.sarif
-          category: trivy-api
-
-      # ── SAST: mi propio código ──
-      - name: Semgrep sobre mi código
-        run: >-
-          docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:1.142.0
-          semgrep scan --config=p/default --config=p/secrets
-          --sarif --output=semgrep.sarif --metrics=off --no-git-ignore .
-
-      - name: Publicar los hallazgos de Semgrep
-        if: always() && hashFiles('semgrep.sarif') != ''
-        uses: github/codeql-action/upload-sarif@7999b86c43a865dc79d8923397f35af22de63401 # v4
-        with:
-          sarif_file: semgrep.sarif
-          category: semgrep
-
-      # Cuántas vulnerabilidades hay y de qué gravedad, en el resumen del run, para
-      # que quien aprueba no tenga que abrir el SARIF (Reto 6).
       - name: Resumen de seguridad
         if: always()
         run: |
-          contar() {
-            python3 - "$1" <<'PY'
+          resumen=$(python3 - trivy.sarif <<'PY'
           import json, sys, collections
           try:
               d = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -278,48 +271,55 @@ jobs:
               niveles[nivel] += 1
           print(", ".join(f"{k}: {v}" for k, v in sorted(niveles.items())) or "sin hallazgos")
           PY
-          }
-          {
-            echo "## Seguridad"
-            echo ""
-            echo "| Análisis | Hallazgos |"
-            echo "|---|---|"
-            echo "| Trivy (perfil-web) | $(contar trivy-web.sarif) |"
-            echo "| Trivy (perfil-api) | $(contar trivy-api.sarif) |"
-            echo "| Semgrep (mi código) | $(contar semgrep.sarif) |"
-            echo ""
-            echo "Las vulnerabilidades aceptadas a conciencia están en \`.trivyignore\`, con su motivo."
-          } >> "$GITHUB_STEP_SUMMARY"
+          )
+          echo "- **${{ matrix.imagen }}**: $resumen" >> "$GITHUB_STEP_SUMMARY"
 
       # ── La compuerta: esto SÍ frena el pipeline ──
-      # Solo las críticas CON parche disponible. Las aceptadas a conciencia están en
-      # .trivyignore, cada una con su motivo escrito.
-      - name: Frenar si hay una vulnerabilidad crítica con parche
+      # Solo las críticas CON parche. Las aceptadas a conciencia van en .trivyignore.
+      - name: Frenar si hay una crítica con parche
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ env.REGISTRO }}/${{ env.DUENIO }}/perfil-web:${{ env.TAG }}
+          image-ref: ${{ env.REGISTRO }}/${{ env.DUENIO }}/${{ matrix.imagen }}:${{ env.TAG }}
           scan-type: image
           severity: CRITICAL
           ignore-unfixed: true
           exit-code: '1'
           format: table
           trivyignores: .trivyignore
+          skip-setup-trivy: true   # ya lo instaló el paso del informe (Reto 1)
 
-      - name: Frenar si hay una vulnerabilidad crítica con parche (api)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+  # ─────────────────────── 5b. SAST (Reto 2) ───────────────────────
+  # Semgrep revisa el código fuente, no las imágenes: no depende de package y por eso
+  # arranca a la vez que todo lo demás, en vez de esperar al final (Reto 1).
+  sast:
+    name: SAST del código
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Semgrep sobre mi código
+        run: >-
+          docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:1.142.0
+          semgrep scan --config=p/default --config=p/secrets
+          --sarif --output=semgrep.sarif --metrics=off --no-git-ignore .
+
+      - name: Publicar los hallazgos de Semgrep
+        if: always() && hashFiles('semgrep.sarif') != ''
+        uses: github/codeql-action/upload-sarif@7999b86c43a865dc79d8923397f35af22de63401 # v4
         with:
-          image-ref: ${{ env.REGISTRO }}/${{ env.DUENIO }}/perfil-api:${{ env.TAG }}
-          scan-type: image
-          severity: CRITICAL
-          ignore-unfixed: true
-          exit-code: '1'
-          format: table
-          trivyignores: .trivyignore
+          sarif_file: semgrep.sarif
+          category: semgrep
 
   # ─────────────────────────── 7. SMOKE ───────────────────────────
   smoke:
     name: Smoke test
-    needs: security
+    # Corre a la vez que security: las dos miran la misma imagen ya publicada y no
+    # dependen entre sí. Nada llega a producción sin las dos, porque deploy-prod las
+    # necesita a ambas: adelantar trabajo no es saltarse una compuerta.
+    needs: package
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -369,7 +369,9 @@ jobs:
   # ─────────────────────────── 8. DEPLOY PROD ───────────────────────────
   deploy-prod:
     name: Desplegar a producción
-    needs: smoke
+    # El SAST corre en paralelo, pero sigue siendo una compuerta: si encuentra algo
+    # que rompa el job, a producción no se llega.
+    needs: [smoke, security, sast, integracion]
     # Un pull request nunca despliega: solo el merge a main.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
