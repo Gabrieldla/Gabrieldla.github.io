@@ -143,10 +143,15 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      - name: Calcular el tag de este commit
+      # Mismo commit que usó metadata-action al publicar (en un PR, github.sha es el
+      # commit de merge), y el propietario en minúsculas: una referencia OCI con
+      # mayúsculas no es válida y Trivy la rechaza al parsearla.
+      - name: Calcular el tag y el propietario
+        env:
+          PROPIETARIO: ${{ github.repository_owner }}
         run: |
-          SHA=${{ github.event.pull_request.head.sha || github.sha }}
-          echo "TAG=sha-${SHA:0:7}" >> "$GITHUB_ENV"
+          echo "TAG=sha-${GITHUB_SHA:0:7}" >> "$GITHUB_ENV"
+          echo "DUENIO=${PROPIETARIO,,}" >> "$GITHUB_ENV"
 
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
@@ -159,7 +164,7 @@ jobs:
       - name: Trivy sobre ${{ matrix.imagen }}
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ env.REGISTRO }}/${{ github.repository_owner }}/${{ matrix.imagen }}:${{ env.TAG }}
+          image-ref: ${{ env.REGISTRO }}/${{ env.DUENIO }}/${{ matrix.imagen }}:${{ env.TAG }}
           scan-type: image
           severity: CRITICAL
           ignore-unfixed: true   # sin parche disponible no hay nada que hacer hoy
@@ -175,10 +180,15 @@ jobs:
       contents: read
       packages: read
     steps:
-      - name: Calcular el tag de este commit
+      # Mismo commit que usó metadata-action al publicar (en un PR, github.sha es el
+      # commit de merge), y el propietario en minúsculas: una referencia OCI con
+      # mayúsculas no es válida y Trivy la rechaza al parsearla.
+      - name: Calcular el tag y el propietario
+        env:
+          PROPIETARIO: ${{ github.repository_owner }}
         run: |
-          SHA=${{ github.event.pull_request.head.sha || github.sha }}
-          echo "TAG=sha-${SHA:0:7}" >> "$GITHUB_ENV"
+          echo "TAG=sha-${GITHUB_SHA:0:7}" >> "$GITHUB_ENV"
+          echo "DUENIO=${PROPIETARIO,,}" >> "$GITHUB_ENV"
 
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
@@ -189,7 +199,7 @@ jobs:
       - name: Levantar la imagen que acaba de escanearse
         run: |
           docker run -d --name smoke -p 8080:8080 \
-            "${REGISTRO}/${{ github.repository_owner }}/perfil-web:${TAG}"
+            "${REGISTRO}/${DUENIO}/perfil-web:${TAG}"
 
       - name: GET / responde 200 y trae mi nombre
         run: |
