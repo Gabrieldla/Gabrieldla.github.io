@@ -162,22 +162,20 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
   # ─────────────────────────── 5. SECURITY ───────────────────────────
+  # Dos capas distintas: Trivy revisa lo que HEREDO (sistema operativo y librerías de
+  # las imágenes) y Semgrep revisa lo que ESCRIBO (mi Python y mi JavaScript).
+  # Los hallazgos de ambos se publican en Security → Code scanning (Reto 2).
   security:
-    name: Escaneo con Trivy
+    name: Escaneo y SAST
     needs: package
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read       # solo descargar la imagen, no publicarla
-    strategy:
-      matrix:
-        imagen: [perfil-web, perfil-api]
+      packages: read          # descargar las imágenes, no publicarlas
+      security-events: write  # subir los informes SARIF a Code scanning
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      # Mismo commit que usó metadata-action al publicar (en un PR, github.sha es el
-      # commit de merge), y el propietario en minúsculas: una referencia OCI con
-      # mayúsculas no es válida y Trivy la rechaza al parsearla.
       - name: Calcular el tag y el propietario
         env:
           PROPIETARIO: ${{ github.repository_owner }}
@@ -191,17 +189,72 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Escanea la imagen YA PUBLICADA, no una recién construida: así lo que se revisa
-      # es exactamente el mismo binario que después se prueba y se despliega.
-      - name: Trivy sobre ${{ matrix.imagen }}
+      # ── Trivy: informe completo para Code scanning ──
+      # exit-code 0 a propósito: este paso informa, no decide. Quien decide es el paso
+      # siguiente. Así el informe se sube aunque después el pipeline se frene.
+      - name: Trivy sobre perfil-web (informe)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ env.REGISTRO }}/${{ env.DUENIO }}/${{ matrix.imagen }}:${{ env.TAG }}
+          image-ref: ${{ env.REGISTRO }}/${{ env.DUENIO }}/perfil-web:${{ env.TAG }}
+          scan-type: image
+          format: sarif
+          output: trivy-web.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+
+      - name: Trivy sobre perfil-api (informe)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.REGISTRO }}/${{ env.DUENIO }}/perfil-api:${{ env.TAG }}
+          scan-type: image
+          format: sarif
+          output: trivy-api.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+
+      - name: Publicar los hallazgos de Trivy
+        if: always()
+        uses: github/codeql-action/upload-sarif@7999b86c43a865dc79d8923397f35af22de63401 # v4
+        with:
+          sarif_file: .
+          category: trivy
+
+      # ── SAST: mi propio código ──
+      - name: Semgrep sobre mi código
+        run: >-
+          docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:1.142.0
+          semgrep scan --config=p/default --config=p/secrets
+          --sarif --output=semgrep.sarif --metrics=off --no-git-ignore .
+
+      - name: Publicar los hallazgos de Semgrep
+        if: always()
+        uses: github/codeql-action/upload-sarif@7999b86c43a865dc79d8923397f35af22de63401 # v4
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+      # ── La compuerta: esto SÍ frena el pipeline ──
+      # Solo las críticas CON parche disponible. Las aceptadas a conciencia están en
+      # .trivyignore, cada una con su motivo escrito.
+      - name: Frenar si hay una vulnerabilidad crítica con parche
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.REGISTRO }}/${{ env.DUENIO }}/perfil-web:${{ env.TAG }}
           scan-type: image
           severity: CRITICAL
-          ignore-unfixed: true   # sin parche disponible no hay nada que hacer hoy
-          exit-code: '1'         # una CRITICAL con corrección frena el pipeline
+          ignore-unfixed: true
+          exit-code: '1'
           format: table
+          trivyignores: .trivyignore
+
+      - name: Frenar si hay una vulnerabilidad crítica con parche (api)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.REGISTRO }}/${{ env.DUENIO }}/perfil-api:${{ env.TAG }}
+          scan-type: image
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
+          trivyignores: .trivyignore
 
   # ─────────────────────────── 7. SMOKE ───────────────────────────
   smoke:
