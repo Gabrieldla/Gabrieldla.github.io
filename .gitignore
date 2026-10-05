@@ -6,3 +6,5 @@ _site/
 __pycache__/
 *.pyc
 .pytest_cache/
+semgrep.sarif
+trivy-*.sarif
