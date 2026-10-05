@@ -401,3 +401,27 @@ Cada push a `main` despliega `index.html` con GitHub Pages. Ahí no hay backend:
 - **Por qué elegí esta:** el resumen vive en la misma página donde está el botón de aprobar. Quien va a autorizar el paso a producción ve, sin moverse, cuántas pruebas pasaron y cuántas vulnerabilidades hay de cada gravedad.
 - **Fuentes:** https://docs.github.com/actions/using-workflows/workflow-commands-for-github-actions#adding-a-job-summary
 - **Cómo lo verifiqué:** probé el script del resumen en local con un SARIF de ejemplo antes de subirlo, para no gastar un run averiguando si el heredoc de Python estaba bien indentado dentro del YAML.
+
+### Reto 1: Pipeline rápido
+
+- **Decisión:** cuatro cambios. Caché de npm y de pip, caché de capas de Docker (`type=gha`, con scope por imagen), caché de la base de datos de Trivy, y una reorganización del grafo de jobs para acortar el camino crítico.
+- **Qué moví de sitio, y por qué no se salta ninguna compuerta:**
+  - *El SAST salió del job `security`*. Semgrep analiza **código fuente**, no imágenes: no tenía ningún motivo para esperar a que `package` publicara nada. Ahora arranca a la vez que todo lo demás. Sigue siendo compuerta, porque `deploy-prod` lo necesita.
+  - *`package` dejó de esperar a `integracion`*. Publicar una imagen no es desplegarla. Si la integración falla, producción se frena igual, porque `deploy-prod` también la necesita.
+  - *`smoke` dejó de esperar a `security`*. Las dos miran la misma imagen ya publicada y no dependen entre sí. Nada llega a producción sin ambas.
+- **La medición, que no da el 30 %:**
+
+  | | Jobs | Duración |
+  |---|---|---|
+  | Primera versión que funcionó | 7 | **166 s** |
+  | Misma versión + integración y SAST, sin optimizar | 9 | 200 s |
+  | Versión final optimizada | 9 | **122 s** |
+
+  Contra la primera versión que funcionó: **−26 %**. El criterio pide 30 % y no llegué.
+
+  Contra el mismo pipeline antes de optimizarlo (200 s → 122 s): **−39 %**. Esa es la medida real del efecto de los cambios, pero no es lo que pide el enunciado, así que la dejo como dato, no como respuesta.
+
+- **Por qué no llegué, con datos:** la línea base tenía 7 jobs y la versión final tiene **9**, porque por el camino agregué integración con Compose (Reto 3) y SAST (Reto 2). Por job, las mejoras sí son grandes: publicar imágenes pasó de 33 s a 19 s (−42 %) gracias a la caché de capas, y el SAST desapareció del camino crítico. Lo que no se puede optimizar es el coste fijo de arrancar un job: entre `Set up job`, checkout y restaurar cachés se van 10 a 15 segundos por job, y el camino crítico pasa por cinco. Con 9 jobs, ese suelo ronda los 70 s de los 122 s totales.
+- **Lo que probé y no sirvió:** escanear las dos imágenes en paralelo con una matriz en vez de una detrás de otra. El job de escaneo bajó de 46 s a 28-35 s cada uno, pero el total subió de 122 s a 124 s: lo que gané escaneando en paralelo lo perdí arrancando un job más. Lo dejé igual porque los informes quedan mejor separados por imagen, no porque sea más rápido.
+- **Qué aprendí:** medir un pipeline por su duración total es más ruidoso de lo que parece. Entre runs idénticos vi diferencias de ±10 % según qué runner tocara, así que una mejora del 5 % no se distingue del ruido. Y optimizar la duración de los pasos sirve de poco cuando el grafo obliga a esperar: el mayor ahorro de todo esto no vino de ninguna caché, vino de darme cuenta de que el SAST no tenía por qué esperar a la publicación de las imágenes.
+- **Fuentes:** https://docs.docker.com/build/cache/backends/gha/, https://github.com/actions/setup-node#caching-global-packages-data, https://docs.github.com/actions/using-workflows/caching-dependencies-to-speed-up-workflows, https://trivy.dev/latest/docs/configuration/cache/
