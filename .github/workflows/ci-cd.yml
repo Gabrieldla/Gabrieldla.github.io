@@ -75,7 +75,7 @@ jobs:
         run: bash scripts/armar-sitio.sh
 
       - name: Vitest sobre _site/
-        run: npm test
+        run: npm test 2>&1 | tee vitest.txt
 
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
@@ -84,7 +84,21 @@ jobs:
         working-directory: api
         run: |
           pip install -r requirements.txt -r requirements-dev.txt
-          python -m pytest tests -q
+          python -m pytest tests -q | tee ../pytest.txt
+
+      # Quien aprueba el despliegue tiene que saber qué está aprobando sin abrir
+      # cuatro logs: el resumen del run lo cuenta en una tabla (Reto 6).
+      - name: Resumen de las pruebas
+        if: always()
+        run: |
+          {
+            echo "## Pruebas"
+            echo ""
+            echo "| Suite | Resultado |"
+            echo "|---|---|"
+            echo "| Vitest (sitio) | $(grep -oE "Tests[[:space:]]+[0-9]+ passed" vitest.txt || echo "ver log") |"
+            echo "| pytest (API) | $(grep -oE "[0-9]+ passed" pytest.txt || echo "ver log") |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ─────────────── 3b. INTEGRACIÓN con Compose (Reto 3) ───────────────
   # Vitest prueba el sitio y pytest la validación de la API, pero por separado.
@@ -240,6 +254,43 @@ jobs:
           sarif_file: semgrep.sarif
           category: semgrep
 
+      # Cuántas vulnerabilidades hay y de qué gravedad, en el resumen del run, para
+      # que quien aprueba no tenga que abrir el SARIF (Reto 6).
+      - name: Resumen de seguridad
+        if: always()
+        run: |
+          contar() {
+            python3 - "$1" <<'PY'
+          import json, sys, collections
+          try:
+              d = json.load(open(sys.argv[1], encoding="utf-8"))
+          except Exception:
+              print("(sin informe)"); raise SystemExit
+          niveles = collections.Counter()
+          reglas = {r["id"]: r for r in d["runs"][0]["tool"]["driver"].get("rules", [])}
+          for res in d["runs"][0].get("results", []):
+              r = reglas.get(res.get("ruleId"), {})
+              sev = (r.get("properties", {}) or {}).get("security-severity")
+              nivel = res.get("level", "warning")
+              if sev:
+                  v = float(sev)
+                  nivel = "critical" if v >= 9 else "high" if v >= 7 else "medium" if v >= 4 else "low"
+              niveles[nivel] += 1
+          print(", ".join(f"{k}: {v}" for k, v in sorted(niveles.items())) or "sin hallazgos")
+          PY
+          }
+          {
+            echo "## Seguridad"
+            echo ""
+            echo "| Análisis | Hallazgos |"
+            echo "|---|---|"
+            echo "| Trivy (perfil-web) | $(contar trivy-web.sarif) |"
+            echo "| Trivy (perfil-api) | $(contar trivy-api.sarif) |"
+            echo "| Semgrep (mi código) | $(contar semgrep.sarif) |"
+            echo ""
+            echo "Las vulnerabilidades aceptadas a conciencia están en \`.trivyignore\`, con su motivo."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       # ── La compuerta: esto SÍ frena el pipeline ──
       # Solo las críticas CON parche disponible. Las aceptadas a conciencia están en
       # .trivyignore, cada una con su motivo escrito.
@@ -333,3 +384,19 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+
+      # Que deploy-pages termine en verde solo dice que GitHub aceptó el artefacto.
+      # Esto entra por la URL real y comprueba qué sirve de verdad el sitio (Reto 5).
+      - name: Verificar el sitio publicado
+        run: bash scripts/verificar-produccion.sh "${{ steps.deployment.outputs.page_url }}"
+
+      - name: Resumen del despliegue
+        if: always()
+        run: |
+          {
+            echo "## Despliegue a produccion"
+            echo ""
+            echo "- Sitio: ${{ steps.deployment.outputs.page_url }}"
+            echo "- Commit: \`${GITHUB_SHA:0:7}\`"
+            echo "- Aprobado por: @${{ github.actor }}"
+          } >> "$GITHUB_STEP_SUMMARY"

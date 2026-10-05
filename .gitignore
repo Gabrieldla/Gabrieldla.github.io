@@ -8,3 +8,5 @@ __pycache__/
 .pytest_cache/
 semgrep.sarif
 trivy-*.sarif
+vitest.txt
+pytest.txt

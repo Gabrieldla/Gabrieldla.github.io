@@ -1,5 +1,7 @@
 # Perfil — Gabriel De la Rivera
 
+[![CI/CD](https://github.com/Gabrieldla/Gabrieldla.github.io/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/Gabrieldla/Gabrieldla.github.io/actions/workflows/ci-cd.yml)
+
 Sitio personal publicado en https://gabrieldla.github.io y, desde el LAB-02, una aplicación de tres servicios en contenedores con un libro de visitas.
 
 ## Arquitectura
