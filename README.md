@@ -48,6 +48,29 @@ docker pull ghcr.io/gabrieldla/perfil-api:1.0
 
 Tag fijo `1.0`, nunca `latest`. La de `db` no se publica porque solo agrega los scripts de `init/` sobre la imagen oficial de Postgres.
 
+## El pipeline de CI/CD
+
+Cada cambio recorre seis etapas encadenadas en `.github/workflows/ci-cd.yml`. Si una falla, las siguientes no corren.
+
+| Etapa | Qué hace | Si falla, significa |
+|---|---|---|
+| `build` | HTMLHint, Hadolint y ruff; arma `_site/` con solo lo público | El código no cumple las reglas de estilo o el HTML está roto |
+| `test` | 13 pruebas de Vitest sobre `_site/` y 10 de pytest sobre la API | El sitio o la API cambiaron de comportamiento |
+| `package` | Publica `perfil-web` y `perfil-api` en GHCR con el tag `sha-<commit>` | La imagen no se puede construir |
+| `security` | Trivy sobre esas imágenes ya publicadas | Hay una vulnerabilidad crítica **con parche disponible** |
+| `smoke` | Levanta la imagen y comprueba que responde 200 con mi nombre | La imagen construye pero no sirve |
+| `deploy-prod` | Publica `_site/` en GitHub Pages, **tras aprobación** | — |
+
+Un pull request recorre de `build` a `smoke`. Solo un push a `main` llega a `deploy-prod`, y ahí se detiene a esperar que alguien apruebe.
+
+### Delivery o deployment
+
+Lo que está implementado aquí es **Continuous Delivery**: todo lo que llega a `main` queda probado, empaquetado, escaneado y **listo** para producción, pero el último paso lo autoriza una persona. El job `deploy-prod` usa el environment `github-pages`, que tiene activada la regla *Required reviewers*, así que se queda en espera hasta que apruebo desde la pestaña Actions.
+
+**Qué habría que cambiar para tener Continuous Deployment:** quitar los *Required reviewers* de ese environment. Nada más. No cambia ni una línea del workflow ni del código, y ahí está lo interesante: la frontera entre entregar y desplegar no es técnica, es una decisión de quién asume el riesgo.
+
+**Cuándo no lo haría.** El despliegue automático exige que las pruebas sean suficientes para confiar en ellas sin mirar. En este perfil no lo son: Vitest revisa el HTML publicado y el smoke comprueba que el contenedor responde, pero nada verifica que la página se vea bien, que los estilos carguen o que el libro de visitas funcione contra una API real. Mientras la prueba automática no cubra lo que un humano revisaría a ojo, quitar la aprobación es automatizar también los errores. Tampoco lo haría si el despliegue fuera difícil de revertir, si hubiera migraciones de base de datos de por medio, o en una ventana crítica, como el día de una entrega del curso.
+
 ## Cómo se publica la página
 
 Cada push a `main` despliega `index.html` con GitHub Pages. Ahí no hay backend: `libro-de-visitas.js` consulta `/api/mensajes` y, si no responde, deja la sección oculta y el resto del perfil se ve igual que siempre.
