@@ -191,17 +191,19 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.imagen }}
 
   # ─────────────────────────── 5. SECURITY ───────────────────────────
-  # Dos capas distintas: Trivy revisa lo que HEREDO (sistema operativo y librerías de
-  # las imágenes) y Semgrep revisa lo que ESCRIBO (mi Python y mi JavaScript).
-  # Los hallazgos de ambos se publican en Security → Code scanning (Reto 2).
+  # Trivy revisa lo que HEREDO: el sistema operativo y las librerías de las imágenes.
+  # Una copia del job por imagen, para que las dos se escaneen a la vez (Reto 1).
   security:
-    name: Escaneo y SAST
+    name: Escaneo de imagen
     needs: package
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read          # descargar las imágenes, no publicarlas
-      security-events: write  # subir los informes SARIF a Code scanning
+      packages: read          # descargar la imagen, no publicarla
+      security-events: write  # subir el informe SARIF a Code scanning
+    strategy:
+      matrix:
+        imagen: [perfil-web, perfil-api]
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
@@ -221,60 +223,37 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # La base de datos de vulnerabilidades pesa cientos de MB y Trivy la baja en
-      # cada run. Se guarda por día: sigue estando al día y deja de descargarse cuatro
-      # veces seguidas (Reto 1).
+      # La base de datos de vulnerabilidades pesa cientos de MB. Se guarda entre runs
+      # para no descargarla cada vez (Reto 1).
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ github.workspace }}/.cache/trivy
-          key: trivy-db-${{ github.run_id }}
-          restore-keys: trivy-db-
+          key: trivy-db-${{ matrix.imagen }}-${{ github.run_id }}
+          restore-keys: trivy-db-${{ matrix.imagen }}-
 
-      # ── Trivy: informe completo para Code scanning ──
-      # exit-code 0 a propósito: este paso informa, no decide. Quien decide es el paso
-      # siguiente. Así el informe se sube aunque después el pipeline se frene.
-      - name: Trivy sobre perfil-web (informe)
+      # ── Informe completo para Code scanning ──
+      # exit-code 0 a propósito: este paso informa, no decide. Y NO aplica
+      # .trivyignore: el panel muestra todo lo que hay, incluso lo aceptado.
+      - name: Trivy sobre ${{ matrix.imagen }} (informe)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ env.REGISTRO }}/${{ env.DUENIO }}/perfil-web:${{ env.TAG }}
+          image-ref: ${{ env.REGISTRO }}/${{ env.DUENIO }}/${{ matrix.imagen }}:${{ env.TAG }}
           scan-type: image
           format: sarif
-          output: trivy-web.sarif
+          output: trivy.sarif
           severity: CRITICAL,HIGH,MEDIUM
 
-      - name: Trivy sobre perfil-api (informe)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ env.REGISTRO }}/${{ env.DUENIO }}/perfil-api:${{ env.TAG }}
-          scan-type: image
-          format: sarif
-          output: trivy-api.sarif
-          severity: CRITICAL,HIGH,MEDIUM
-          skip-setup-trivy: true   # ya lo instaló el paso anterior (Reto 1)
-
-      # Un informe por categoría: CodeQL ya no admite combinar varios en una sola,
-      # y así en Code scanning se distingue qué hallazgo viene de qué imagen.
-      - name: Publicar los hallazgos de Trivy (web)
-        if: always() && hashFiles('trivy-web.sarif') != ''
+      - name: Publicar los hallazgos
+        if: always() && hashFiles('trivy.sarif') != ''
         uses: github/codeql-action/upload-sarif@7999b86c43a865dc79d8923397f35af22de63401 # v4
         with:
-          sarif_file: trivy-web.sarif
-          category: trivy-web
+          sarif_file: trivy.sarif
+          category: trivy-${{ matrix.imagen }}
 
-      - name: Publicar los hallazgos de Trivy (api)
-        if: always() && hashFiles('trivy-api.sarif') != ''
-        uses: github/codeql-action/upload-sarif@7999b86c43a865dc79d8923397f35af22de63401 # v4
-        with:
-          sarif_file: trivy-api.sarif
-          category: trivy-api
-
-      # Cuántas vulnerabilidades hay y de qué gravedad, en el resumen del run, para
-      # que quien aprueba no tenga que abrir el SARIF (Reto 6).
       - name: Resumen de seguridad
         if: always()
         run: |
-          contar() {
-            python3 - "$1" <<'PY'
+          resumen=$(python3 - trivy.sarif <<'PY'
           import json, sys, collections
           try:
               d = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -292,45 +271,22 @@ jobs:
               niveles[nivel] += 1
           print(", ".join(f"{k}: {v}" for k, v in sorted(niveles.items())) or "sin hallazgos")
           PY
-          }
-          {
-            echo "## Seguridad"
-            echo ""
-            echo "| Análisis | Hallazgos |"
-            echo "|---|---|"
-            echo "| Trivy (perfil-web) | $(contar trivy-web.sarif) |"
-            echo "| Trivy (perfil-api) | $(contar trivy-api.sarif) |"
-            echo "| Semgrep (mi código) | $(contar semgrep.sarif) |"
-            echo ""
-            echo "Las vulnerabilidades aceptadas a conciencia están en \`.trivyignore\`, con su motivo."
-          } >> "$GITHUB_STEP_SUMMARY"
+          )
+          echo "- **${{ matrix.imagen }}**: $resumen" >> "$GITHUB_STEP_SUMMARY"
 
       # ── La compuerta: esto SÍ frena el pipeline ──
-      # Solo las críticas CON parche disponible. Las aceptadas a conciencia están en
-      # .trivyignore, cada una con su motivo escrito.
-      - name: Frenar si hay una vulnerabilidad crítica con parche
+      # Solo las críticas CON parche. Las aceptadas a conciencia van en .trivyignore.
+      - name: Frenar si hay una crítica con parche
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ env.REGISTRO }}/${{ env.DUENIO }}/perfil-web:${{ env.TAG }}
+          image-ref: ${{ env.REGISTRO }}/${{ env.DUENIO }}/${{ matrix.imagen }}:${{ env.TAG }}
           scan-type: image
           severity: CRITICAL
           ignore-unfixed: true
           exit-code: '1'
           format: table
           trivyignores: .trivyignore
-          skip-setup-trivy: true
-
-      - name: Frenar si hay una vulnerabilidad crítica con parche (api)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ env.REGISTRO }}/${{ env.DUENIO }}/perfil-api:${{ env.TAG }}
-          scan-type: image
-          severity: CRITICAL
-          ignore-unfixed: true
-          exit-code: '1'
-          format: table
-          trivyignores: .trivyignore
-          skip-setup-trivy: true
+          skip-setup-trivy: true   # ya lo instaló el paso del informe (Reto 1)
 
   # ─────────────────────── 5b. SAST (Reto 2) ───────────────────────
   # Semgrep revisa el código fuente, no las imágenes: no depende de package y por eso
