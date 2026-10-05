@@ -202,9 +202,11 @@ jobs:
         env:
           PROPIETARIO: ${{ github.repository_owner }}
         run: |
-          echo "TAG=sha-${GITHUB_SHA:0:7}" >> "$GITHUB_ENV"
-          echo "DUENIO=${PROPIETARIO,,}" >> "$GITHUB_ENV"
-          echo "TRIVY_CACHE_DIR=${GITHUB_WORKSPACE}/.cache/trivy" >> "$GITHUB_ENV"
+          {
+            echo "TAG=sha-${GITHUB_SHA:0:7}"
+            echo "DUENIO=${PROPIETARIO,,}"
+            echo "TRIVY_CACHE_DIR=${GITHUB_WORKSPACE}/.cache/trivy"
+          } >> "$GITHUB_ENV"
 
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
