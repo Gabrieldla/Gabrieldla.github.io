@@ -1,0 +1,29 @@
+# Vulnerabilidades aceptadas a conciencia, con su motivo y su fecha.
+#
+# Aceptar no es esconder: cada línea de aquí es una decisión que puedo defender, y
+# que vuelvo a revisar cuando cambie la imagen base. Lo que NO se acepta nunca es
+# una vulnerabilidad crítica con parche disponible: eso frena el pipeline.
+
+# ─── pip en la imagen de la API (5 CVE de severidad media) ───────────────────────
+#
+# Todas afectan al pip que trae la imagen base de Python en /usr/local. Mi aplicación
+# no lo usa: las dependencias se instalan en la etapa de build, en un venv al que
+# además le quito pip, y el contenedor final arranca gunicorn, nunca pip.
+#
+# Para explotarlas haría falta ejecutar `pip install` sobre un paquete controlado por
+# el atacante dentro del contenedor en marcha. Eso no ocurre: no hay nada que invoque
+# pip, y el proceso corre como el usuario `app` (uid 10001), que ni siquiera puede
+# escribir en site-packages.
+#
+# Alternativa que evalué: borrar pip de la imagen final con un `rm -rf` sobre
+# /usr/local/lib/python3.12/site-packages/pip*. Lo descarté porque esa ruta lleva la
+# versión de Python escrita dentro y se rompe en silencio en cuanto Dependabot suba la
+# imagen base; el riesgo real que elimina es cero. Si algún día estas CVE suben a
+# CRITICAL, se reevalúa.
+#
+# Revisado: 2026-10-05
+CVE-2025-8869
+CVE-2026-13346
+CVE-2026-3219
+CVE-2026-6357
+CVE-2026-8643

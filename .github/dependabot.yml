@@ -7,19 +7,51 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Espera antes de proponer una versión recién publicada. Si alguien compromete un
+    # paquete, lo habitual es que se detecte en los primeros días: actualizar el mismo
+    # día que sale es correr hacia el problema. Lo señaló Semgrep (Reto 2).
+    cooldown:
+      default-days: 7
+      semver-major-days: 14   # un salto mayor puede romper: más tiempo de observación
+      semver-minor-days: 7
+      semver-patch-days: 3
     open-pull-requests-limit: 5
 
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
+    # Espera antes de proponer una versión recién publicada. Si alguien compromete un
+    # paquete, lo habitual es que se detecte en los primeros días: actualizar el mismo
+    # día que sale es correr hacia el problema. Lo señaló Semgrep (Reto 2).
+    cooldown:
+      default-days: 7
+      semver-major-days: 14   # un salto mayor puede romper: más tiempo de observación
+      semver-minor-days: 7
+      semver-patch-days: 3
 
   - package-ecosystem: pip
     directory: /api
     schedule:
       interval: weekly
+    # Espera antes de proponer una versión recién publicada. Si alguien compromete un
+    # paquete, lo habitual es que se detecte en los primeros días: actualizar el mismo
+    # día que sale es correr hacia el problema. Lo señaló Semgrep (Reto 2).
+    cooldown:
+      default-days: 7
+      semver-major-days: 14   # un salto mayor puede romper: más tiempo de observación
+      semver-minor-days: 7
+      semver-patch-days: 3
 
   - package-ecosystem: docker
     directories: ["/api", "/web", "/db"]
     schedule:
       interval: weekly
+    # Espera antes de proponer una versión recién publicada. Si alguien compromete un
+    # paquete, lo habitual es que se detecte en los primeros días: actualizar el mismo
+    # día que sale es correr hacia el problema. Lo señaló Semgrep (Reto 2).
+    cooldown:
+      default-days: 7
+      semver-major-days: 14   # un salto mayor puede romper: más tiempo de observación
+      semver-minor-days: 7
+      semver-patch-days: 3
