@@ -1,0 +1,25 @@
+# Fijar las acciones con SHA las vuelve inmutables, pero también las congela: si una
+# publica un parche de seguridad, nadie se entera. Dependabot abre un PR cuando eso
+# pasa, con el SHA nuevo. Inmutable y al día a la vez.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: pip
+    directory: /api
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directories: ["/api", "/web", "/db"]
+    schedule:
+      interval: weekly

@@ -1,0 +1,241 @@
+name: CI/CD
+
+# Un PR hacia main recorre build → test → package → security → smoke.
+# Un push a main hace lo mismo y además queda esperando aprobación para publicar.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Mínimo privilegio: por defecto el workflow solo puede LEER el repositorio.
+# Cada job que necesite más, lo pide para sí mismo (Reto 4).
+permissions:
+  contents: read
+
+env:
+  REGISTRO: ghcr.io
+
+jobs:
+  # ─────────────────────────── 2. BUILD ───────────────────────────
+  build:
+    name: Build y lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # Las acciones de terceros van fijadas con el SHA completo del commit, no con un
+      # tag: un tag se puede mover a otro código (así se comprometió tj-actions en 2025).
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '20'
+      - run: npm ci
+
+      - name: Lint del HTML (HTMLHint)
+        run: npm run lint:html
+
+      - name: Lint de los Dockerfiles (Hadolint)
+        run: |
+          for d in api/Dockerfile web/Dockerfile db/Dockerfile; do
+            echo "::group::$d"
+            docker run --rm -i -v "$PWD/.hadolint.yaml:/.hadolint.yaml" \
+              hadolint/hadolint:v2.12.0-alpine < "$d"
+            echo "::endgroup::"
+          done
+
+      - name: Lint de la API (ruff)
+        run: pipx run ruff==0.14.0 check api/
+
+      - name: Armar el sitio publicable
+        run: bash scripts/armar-sitio.sh
+
+      # Sube _site/ como artefacto de Pages. Es lo único que llegará a producción:
+      # ni compose.yaml, ni api/, ni db/, ni .env.example.
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: _site
+
+  # ─────────────────────────── 3. TEST ───────────────────────────
+  test:
+    name: Pruebas
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '20'
+      - run: npm ci
+
+      # El mismo script que usó build: se prueba exactamente lo que se publica.
+      - name: Armar el sitio publicable
+        run: bash scripts/armar-sitio.sh
+
+      - name: Vitest sobre _site/
+        run: npm test
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Pruebas de la API (pytest)
+        working-directory: api
+        run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+          python -m pytest tests -q
+
+  # ─────────────────────────── 4. PACKAGE ───────────────────────────
+  package:
+    name: Publicar imagen
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write      # lo único que este job necesita de más
+    strategy:
+      matrix:
+        include:
+          - imagen: perfil-web
+            contexto: .
+            dockerfile: web/Dockerfile
+          - imagen: perfil-api
+            contexto: ./api
+            dockerfile: api/Dockerfile
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      # Se publica con el GITHUB_TOKEN del propio workflow: sin tokens personales.
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ env.REGISTRO }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Arma el tag a partir del commit (sha-1a2b3c4) y las etiquetas OCI,
+      # entre ellas image.source, que conecta el paquete con este repositorio.
+      - id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ${{ env.REGISTRO }}/${{ github.repository_owner }}/${{ matrix.imagen }}
+          tags: type=sha,prefix=sha-,format=short
+
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: ${{ matrix.contexto }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  # ─────────────────────────── 5. SECURITY ───────────────────────────
+  security:
+    name: Escaneo con Trivy
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read       # solo descargar la imagen, no publicarla
+    strategy:
+      matrix:
+        imagen: [perfil-web, perfil-api]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      # Mismo commit que usó metadata-action al publicar (en un PR, github.sha es el
+      # commit de merge), y el propietario en minúsculas: una referencia OCI con
+      # mayúsculas no es válida y Trivy la rechaza al parsearla.
+      - name: Calcular el tag y el propietario
+        env:
+          PROPIETARIO: ${{ github.repository_owner }}
+        run: |
+          echo "TAG=sha-${GITHUB_SHA:0:7}" >> "$GITHUB_ENV"
+          echo "DUENIO=${PROPIETARIO,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ env.REGISTRO }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Escanea la imagen YA PUBLICADA, no una recién construida: así lo que se revisa
+      # es exactamente el mismo binario que después se prueba y se despliega.
+      - name: Trivy sobre ${{ matrix.imagen }}
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.REGISTRO }}/${{ env.DUENIO }}/${{ matrix.imagen }}:${{ env.TAG }}
+          scan-type: image
+          severity: CRITICAL
+          ignore-unfixed: true   # sin parche disponible no hay nada que hacer hoy
+          exit-code: '1'         # una CRITICAL con corrección frena el pipeline
+          format: table
+
+  # ─────────────────────────── 7. SMOKE ───────────────────────────
+  smoke:
+    name: Smoke test
+    needs: security
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      # Mismo commit que usó metadata-action al publicar (en un PR, github.sha es el
+      # commit de merge), y el propietario en minúsculas: una referencia OCI con
+      # mayúsculas no es válida y Trivy la rechaza al parsearla.
+      - name: Calcular el tag y el propietario
+        env:
+          PROPIETARIO: ${{ github.repository_owner }}
+        run: |
+          echo "TAG=sha-${GITHUB_SHA:0:7}" >> "$GITHUB_ENV"
+          echo "DUENIO=${PROPIETARIO,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ env.REGISTRO }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Levantar la imagen que acaba de escanearse
+        run: |
+          docker run -d --name smoke -p 8080:8080 \
+            "${REGISTRO}/${DUENIO}/perfil-web:${TAG}"
+
+      - name: GET / responde 200 y trae mi nombre
+        run: |
+          for _ in $(seq 1 15); do
+            if curl -fsS http://localhost:8080/ -o /tmp/pagina.html; then break; fi
+            sleep 1
+          done
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/)
+          echo "HTTP $code"
+          test "$code" = "200"
+          grep -q "Gabriel De la Rivera" /tmp/pagina.html
+          echo "El sitio responde y muestra mi nombre."
+
+      - name: Logs del contenedor si algo falló
+        if: failure()
+        run: docker logs smoke
+
+      - name: Apagar
+        if: always()
+        run: docker rm -f smoke
+
+  # ─────────────────────────── 8. DEPLOY PROD ───────────────────────────
+  deploy-prod:
+    name: Desplegar a producción
+    needs: smoke
+    # Un pull request nunca despliega: solo el merge a main.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    # El environment github-pages tiene Required reviewers: el job se queda esperando
+    # aquí hasta que una persona apruebe. Esto es Continuous Delivery, no Deployment.
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

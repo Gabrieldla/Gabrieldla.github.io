@@ -4,4 +4,4 @@
 !index.html
 !libro-de-visitas.js
 !estilos.css
-!web/nginx.conf
+!web/default.conf.template

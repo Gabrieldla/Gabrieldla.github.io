@@ -6,9 +6,17 @@ FROM nginxinc/nginx-unprivileged:1.31.6-alpine3.24
 LABEL org.opencontainers.image.source="https://github.com/Gabrieldla/Gabrieldla.github.io"
 LABEL org.opencontainers.image.description="nginx que sirve el perfil y hace de reverse proxy hacia la API. LAB-02 de IF-1116."
 
+# El entrypoint de la imagen solo calcula NGINX_LOCAL_RESOLVERS (los DNS de
+# /etc/resolv.conf) si esta variable está puesta. Sin ella, la plantilla se copia con
+# el ${NGINX_LOCAL_RESOLVERS} literal y nginx no arranca.
+ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
+
 # Primero la config (cambia poco) y después el contenido (cambia más): mejor caché.
 # --chmod=644: solo lectura; los archivos vienen de Windows con permiso de ejecución.
-COPY --chmod=644 web/nginx.conf /etc/nginx/conf.d/default.conf
+# Sin --chmod aquí: ese flag se aplica también al directorio que COPY crea, y
+# /etc/nginx/templates quedaba en 644, sin permiso de entrar. El usuario nginx no
+# podía leer la plantilla y el contenedor arrancaba con la config por defecto.
+COPY web/default.conf.template /etc/nginx/templates/default.conf.template
 COPY --chmod=644 index.html libro-de-visitas.js estilos.css /usr/share/nginx/html/
 
 EXPOSE 8080
