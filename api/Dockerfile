@@ -1,6 +1,6 @@
 # ── Etapa 1: build ─────────────────────────────────────────────────────────────
 # Instala las dependencias en un entorno virtual aislado (/opt/venv).
-FROM python:3.12.14-alpine3.24 AS build
+FROM python:3.14.7-alpine3.24 AS build
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -20,7 +20,7 @@ RUN pip install -r requirements.txt \
 # Misma base que la etapa build, así el venv (que apunta a /usr/local/bin/python) funciona.
 # Alpine en vez de slim-Debian: 99 MB en vez de 206 y 0 CVE críticas/altas (Reto 5).
 # De la etapa anterior solo se trae el venv: nada de caché de pip ni archivos temporales.
-FROM python:3.12.14-alpine3.24
+FROM python:3.14.7-alpine3.24
 
 # Conecta la imagen con su repositorio: la página del paquete en GHCR muestra el README
 # y enlaza al código. Sin esta etiqueta el paquete queda suelto en la cuenta.
