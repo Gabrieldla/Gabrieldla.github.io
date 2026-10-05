@@ -250,6 +250,7 @@ jobs:
           format: sarif
           output: trivy-api.sarif
           severity: CRITICAL,HIGH,MEDIUM
+          skip-setup-trivy: true   # ya lo instaló el paso anterior (Reto 1)
 
       # Un informe por categoría: CodeQL ya no admite combinar varios en una sola,
       # y así en Code scanning se distingue qué hallazgo viene de qué imagen.
@@ -317,6 +318,7 @@ jobs:
           exit-code: '1'
           format: table
           trivyignores: .trivyignore
+          skip-setup-trivy: true
 
       - name: Frenar si hay una vulnerabilidad crítica con parche (api)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -328,6 +330,7 @@ jobs:
           exit-code: '1'
           format: table
           trivyignores: .trivyignore
+          skip-setup-trivy: true
 
   # ─────────────────────── 5b. SAST (Reto 2) ───────────────────────
   # Semgrep revisa el código fuente, no las imágenes: no depende de package y por eso
