@@ -157,6 +157,10 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       # Se publica con el GITHUB_TOKEN del propio workflow: sin tokens personales.
+      # El driver por defecto de buildx no sabe exportar caché: hace falta el driver
+      # docker-container, que es lo que instala esta acción (Reto 1).
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ${{ env.REGISTRO }}
