@@ -1,0 +1,6 @@
+# Reglas de Hadolint para los Dockerfiles de web, api y db.
+failure-threshold: warning
+ignored:
+  # DL3018: "fija la versión de los paquetes de apk". No instalo paquetes con apk en
+  # ninguna imagen, pero la regla también se dispara en imágenes base de Alpine.
+  - DL3018

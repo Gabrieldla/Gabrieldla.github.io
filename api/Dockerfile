@@ -7,6 +7,9 @@ ENV PIP_NO_CACHE_DIR=1 \
 RUN python -m venv /opt/venv
 ENV PATH=/opt/venv/bin:$PATH
 
+# Sin WORKDIR, el destino "." depende de dónde esté parada la imagen base (DL3045 de
+# Hadolint): se declara explícitamente para que no haya ambigüedad.
+WORKDIR /build
 # Solo requirements.txt: esta capa (la lenta) se reutiliza mientras no cambien las dependencias.
 COPY requirements.txt .
 # pip se usa para instalar y después se quita del venv: no debe viajar a la imagen final.
