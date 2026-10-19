@@ -24,7 +24,7 @@
   "devDependencies": {
     "htmlhint": "^1.7.1",
     "jsdom": "^29.1.1",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.5"
   },
   "type": "module"
 }
