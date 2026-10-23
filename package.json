@@ -22,7 +22,7 @@
   },
   "homepage": "https://github.com/Gabrieldla/Gabrieldla.github.io#readme",
   "devDependencies": {
-    "htmlhint": "^1.7.1",
+    "htmlhint": "^1.9.2",
     "jsdom": "^29.1.1",
     "vitest": "^5.0.3"
   },
