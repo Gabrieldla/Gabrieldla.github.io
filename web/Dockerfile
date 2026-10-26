@@ -1,6 +1,6 @@
 # Contexto de build = raíz del repo (ver compose.yaml), para poder copiar index.html,
 # que tiene que seguir en la raíz porque GitHub Pages lo sirve desde ahí.
-FROM nginxinc/nginx-unprivileged:1.31.6-alpine3.24
+FROM nginxinc/nginx-unprivileged:1.31.7-alpine3.24
 
 # Conecta la imagen con su repositorio en GitHub (mismo motivo que en el Dockerfile de la API).
 LABEL org.opencontainers.image.source="https://github.com/Gabrieldla/Gabrieldla.github.io"
