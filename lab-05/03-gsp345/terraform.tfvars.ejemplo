@@ -1,0 +1,14 @@
+# Copia este archivo a terraform.tfvars NADA MAS abrir Cloud Shell y rellena los
+# cuatro valores con los que te da el lab. Asi no tienes que escribirlos en cada
+# comando ni responder prompts con el reloj corriendo.
+#
+#   cp terraform.tfvars.ejemplo terraform.tfvars
+#
+# terraform.tfvars NO se sube al repositorio: lleva el id de tu proyecto temporal
+# y no aporta nada a la correccion.
+
+project_id    = "qwiklabs-gcp-00-xxxxxxxx"
+region        = "us-east1"
+zone          = "us-east1-b"
+nombre_bucket = "tf-bucket-xxxxxxx"
+network_name  = "tf-vpc"

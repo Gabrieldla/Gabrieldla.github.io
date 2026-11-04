@@ -22,6 +22,10 @@ RUN pip install -r requirements.txt \
 # De la etapa anterior solo se trae el venv: nada de caché de pip ni archivos temporales.
 FROM python:3.12.14-alpine3.24
 
+# Parchea los paquetes del sistema. Va en la etapa FINAL porque es la que se
+# publica y la que Trivy escanea; hacerlo solo en la de build no sirve de nada.
+RUN apk upgrade --no-cache
+
 # Conecta la imagen con su repositorio: la página del paquete en GHCR muestra el README
 # y enlaza al código. Sin esta etiqueta el paquete queda suelto en la cuenta.
 LABEL org.opencontainers.image.source="https://github.com/Gabrieldla/Gabrieldla.github.io"

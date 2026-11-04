@@ -2,6 +2,17 @@
 # que tiene que seguir en la raíz porque GitHub Pages lo sirve desde ahí.
 FROM nginxinc/nginx-unprivileged:1.31.6-alpine3.24
 
+# Parchea los paquetes del sistema de la imagen base. Sin esto, la imagen
+# arrastra las vulnerabilidades que tuviera Alpine el dia que se publico: hoy,
+# CVE-2026-111497 en brotli-libs, CRITICAL y con parche (1.2.0-r1 -> 1.2.1-r0).
+# Una CVE con parche disponible se corrige, no se acepta.
+#
+# Hay que subir a root para instalar y volver a bajar: esta imagen corre como
+# el usuario nginx (uid 101) a proposito.
+USER root
+RUN apk upgrade --no-cache
+USER 101
+
 # Conecta la imagen con su repositorio en GitHub (mismo motivo que en el Dockerfile de la API).
 LABEL org.opencontainers.image.source="https://github.com/Gabrieldla/Gabrieldla.github.io"
 LABEL org.opencontainers.image.description="nginx que sirve el perfil y hace de reverse proxy hacia la API. LAB-02 de IF-1116."
