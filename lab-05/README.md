@@ -7,7 +7,7 @@
 | Lab | Puntaje | Captura | Carpeta |
 |-----|---------|---------|---------|
 | GSP233 — Deploy Kubernetes Load Balancer Service with Terraform | — / 100 | `evidencia/gsp233.png` | [`01-gsp233/`](01-gsp233/) |
-| GSP497 — Cloud Operations for GKE | — / 100 | `evidencia/gsp497.png` | [`02-gsp497/`](02-gsp497/) |
+| **GSP497 — Cloud Operations for GKE** | **completado 05/11/2026** | `evidencia/gsp497-score.png`<br>`evidencia/gsp497-monitoring.png` | [`02-gsp497/`](02-gsp497/) |
 | GSP345 — Build Infrastructure with Terraform: Challenge Lab | — / 100 | `evidencia/gsp345.png` | [`03-gsp345/`](03-gsp345/) |
 
 **Perfil público de Google Skills:** _(pendiente)_
@@ -36,10 +36,15 @@ Puntos a responder cuando lo corra:
 - La IP externa del Service y la prueba de que NGINX respondía.
 - **El grafo entre los dos providers:** por qué `kubernetes_service` no puede crearse antes que el clúster, y dónde se ve esa dependencia en el plan.
 
-### GSP497
+### GSP497 — hecho
 
-- Cuántos recursos creó el plan inicial y cuántos destruyó el teardown, y si los números cuadraron.
-- La captura de Cloud Monitoring con las métricas de Prometheus.
+**Los números cuadran:** `Plan: 5 to add` y `Destroy complete! Resources: 5 destroyed.` Los cinco recursos están nombrados uno por uno en [`02-gsp497/README.md`](02-gsp497/README.md).
+
+**Lo que casi me cuesta la evidencia:** el lab manda `make create`, y ese comando hace el `apply` por dentro. Lanzado a secas, cuando quieres guardar el plan ya es tarde: después del apply, `terraform plan` dice `No changes`. Leí `scripts/create.sh` antes de ejecutarlo, repetí a mano su preparación (generar `tfvars`, habilitar APIs, `init`), capturé el plan, y recién entonces dejé que `make create` trabajara.
+
+**Lo que me confundió:** fui a Monitoring → Alerting demasiado pronto y la lista salía vacía. Pensé que había fallado algo. No: el clúster seguía creándose y la política de alerta es de lo último en aparecer. Un `terraform state list` me lo habría dicho al instante, en vez de mirar una pantalla vacía.
+
+**Detalle del teardown:** `plan-inicial.txt` salió limpio porque se pidió con `-no-color`, pero `make teardown` llama a Terraform por dentro y no deja pasarle ese flag, así que `destroy.txt` trae códigos de color. No lo edité: va tal cual, y al lado está `destroy-sin-color.txt` para poder leerlo.
 
 ### GSP345
 
