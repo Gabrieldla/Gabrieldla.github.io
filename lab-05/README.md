@@ -7,7 +7,7 @@
 | Lab | Puntaje | Captura | Carpeta |
 |-----|---------|---------|---------|
 | GSP233 — Deploy Kubernetes Load Balancer Service with Terraform | — / 100 | `evidencia/gsp233.png` | [`01-gsp233/`](01-gsp233/) |
-| **GSP497 — Cloud Operations for GKE** | **100 / 100** | [score](evidencia/gsp497-score.jpg) · [monitoring](evidencia/gsp497-monitoring.jpg) | [`02-gsp497/`](02-gsp497/) |
+| **GSP497 — Cloud Operations for GKE** | **100 / 100** | [score](evidencia/gsp497-score.jpg) · [progreso](evidencia/gsp497-progreso.jpg) · [monitoring](evidencia/gsp497-monitoring.jpg) | [`02-gsp497/`](02-gsp497/) |
 | GSP345 — Build Infrastructure with Terraform: Challenge Lab | — / 100 | `evidencia/gsp345.png` | [`03-gsp345/`](03-gsp345/) |
 
 **Perfil público de Google Skills:** _(pendiente)_

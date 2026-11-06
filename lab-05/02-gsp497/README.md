@@ -55,6 +55,15 @@ En la captura se ve la condición (`mem alloc above 12`) y, debajo, las series q
 
 El pod de `prometheus` está por encima del umbral de 12, que es justo el caso que la política vigila. Eso es lo que pide el reto: una métrica que **nació en un endpoint de Prometheus** y terminó siendo una métrica nativa de Cloud Monitoring, con alertas encima, sin instalar nada aparte.
 
+## La evidencia del puntaje
+
+Hay dos capturas del 100 %, y la segunda es la que vale:
+
+- [`gsp497-score.jpg`](../evidencia/gsp497-score.jpg) — la página del lab con `Score: 100 / 100` y el ID `GSP497`.
+- [`gsp497-progreso.jpg`](../evidencia/gsp497-progreso.jpg) — la página **Progress** de mi cuenta, con **mi nombre completo**, la fecha y el 100 % en la fila del lab.
+
+El enunciado pide el puntaje "con tu nombre de usuario visible y la fecha". La primera captura no lleva el nombre: muestra el lab, no de quién es. La de Progress sí, y por eso está.
+
 ## Qué me costó
 
 Lo que más tiempo me quitó fue algo que no era un error: fui a **Monitoring → Alerting** demasiado pronto y la lista salía vacía. Di por hecho que algo había fallado. No: `make create` todavía estaba creando el clúster, y la política de alerta es de los últimos recursos en aparecer. Un `terraform state list` lo habría respondido en un segundo.
