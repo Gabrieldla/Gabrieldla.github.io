@@ -1,0 +1,80 @@
+module.vpc.module.vpc.google_compute_network.network: Refreshing state... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/global/networks/tf-vpc-643126]
+module.storage.google_storage_bucket.bucket: Refreshing state... [id=tf-bucket-390617]
+module.instances.google_compute_instance.tf-instance-2: Refreshing state... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2]
+module.instances.google_compute_instance.tf-instance-1: Refreshing state... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1]
+module.vpc.module.subnets.google_compute_subnetwork.subnetwork["us-west1/subnet-02"]: Refreshing state... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/regions/us-west1/subnetworks/subnet-02]
+module.vpc.module.subnets.google_compute_subnetwork.subnetwork["us-west1/subnet-01"]: Refreshing state... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/regions/us-west1/subnetworks/subnet-01]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  ~ update in-place
+
+Terraform will perform the following actions:
+
+  # module.instances.google_compute_instance.tf-instance-1 will be updated in-place
+  ~ resource "google_compute_instance" "tf-instance-1" {
+        id                         = "projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1"
+        name                       = "tf-instance-1"
+        tags                       = []
+        # (25 unchanged attributes hidden)
+
+      ~ network_interface {
+            name                        = "nic0"
+          ~ network                     = "https://www.googleapis.com/compute/v1/projects/qwiklabs-gcp-03-d88e0d84f5ea/global/networks/default" -> "tf-vpc-643126"
+          ~ subnetwork                  = "https://www.googleapis.com/compute/v1/projects/qwiklabs-gcp-03-d88e0d84f5ea/regions/us-west1/subnetworks/default" -> "subnet-01"
+            # (9 unchanged attributes hidden)
+        }
+
+        # (3 unchanged blocks hidden)
+    }
+
+  # module.instances.google_compute_instance.tf-instance-2 will be updated in-place
+  ~ resource "google_compute_instance" "tf-instance-2" {
+        id                         = "projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2"
+        name                       = "tf-instance-2"
+        tags                       = []
+        # (25 unchanged attributes hidden)
+
+      ~ network_interface {
+            name                        = "nic0"
+          ~ network                     = "https://www.googleapis.com/compute/v1/projects/qwiklabs-gcp-03-d88e0d84f5ea/global/networks/default" -> "tf-vpc-643126"
+          ~ subnetwork                  = "https://www.googleapis.com/compute/v1/projects/qwiklabs-gcp-03-d88e0d84f5ea/regions/us-west1/subnetworks/default" -> "subnet-02"
+            # (9 unchanged attributes hidden)
+        }
+
+        # (3 unchanged blocks hidden)
+    }
+
+Plan: 0 to add, 2 to change, 0 to destroy.
+module.instances.google_compute_instance.tf-instance-1: Modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1]
+module.instances.google_compute_instance.tf-instance-2: Modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2]
+module.instances.google_compute_instance.tf-instance-1: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1, 10s elapsed]
+module.instances.google_compute_instance.tf-instance-2: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2, 10s elapsed]
+module.instances.google_compute_instance.tf-instance-1: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1, 20s elapsed]
+module.instances.google_compute_instance.tf-instance-2: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2, 20s elapsed]
+module.instances.google_compute_instance.tf-instance-1: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1, 30s elapsed]
+module.instances.google_compute_instance.tf-instance-2: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2, 30s elapsed]
+module.instances.google_compute_instance.tf-instance-2: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2, 40s elapsed]
+module.instances.google_compute_instance.tf-instance-1: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1, 40s elapsed]
+module.instances.google_compute_instance.tf-instance-2: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2, 50s elapsed]
+module.instances.google_compute_instance.tf-instance-1: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1, 50s elapsed]
+module.instances.google_compute_instance.tf-instance-1: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1, 1m0s elapsed]
+module.instances.google_compute_instance.tf-instance-2: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2, 1m0s elapsed]
+module.instances.google_compute_instance.tf-instance-2: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2, 1m10s elapsed]
+module.instances.google_compute_instance.tf-instance-1: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1, 1m10s elapsed]
+module.instances.google_compute_instance.tf-instance-1: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1, 1m20s elapsed]
+module.instances.google_compute_instance.tf-instance-2: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2, 1m20s elapsed]
+module.instances.google_compute_instance.tf-instance-2: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2, 1m30s elapsed]
+module.instances.google_compute_instance.tf-instance-1: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1, 1m30s elapsed]
+module.instances.google_compute_instance.tf-instance-1: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1, 1m40s elapsed]
+module.instances.google_compute_instance.tf-instance-2: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2, 1m40s elapsed]
+module.instances.google_compute_instance.tf-instance-2: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2, 1m50s elapsed]
+module.instances.google_compute_instance.tf-instance-1: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1, 1m50s elapsed]
+module.instances.google_compute_instance.tf-instance-1: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1, 2m0s elapsed]
+module.instances.google_compute_instance.tf-instance-2: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2, 2m0s elapsed]
+module.instances.google_compute_instance.tf-instance-2: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2, 2m10s elapsed]
+module.instances.google_compute_instance.tf-instance-1: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1, 2m10s elapsed]
+module.instances.google_compute_instance.tf-instance-1: Modifications complete after 2m16s [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1]
+module.instances.google_compute_instance.tf-instance-2: Modifications complete after 2m16s [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2]
+
+Apply complete! Resources: 0 added, 2 changed, 0 destroyed.

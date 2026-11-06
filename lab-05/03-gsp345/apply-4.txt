@@ -1,0 +1,125 @@
+module.storage.google_storage_bucket.bucket: Refreshing state... [id=tf-bucket-390617]
+module.instances.google_compute_instance.tf-instance-1: Refreshing state... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1]
+module.instances.google_compute_instance.tf-instance-2: Refreshing state... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+  ~ update in-place
+
+Terraform will perform the following actions:
+
+  # module.instances.google_compute_instance.tf-instance-1 will be updated in-place
+  ~ resource "google_compute_instance" "tf-instance-1" {
+        id                         = "projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1"
+      ~ machine_type               = "e2-micro" -> "e2-standard-2"
+        name                       = "tf-instance-1"
+        tags                       = []
+        # (24 unchanged attributes hidden)
+
+        # (4 unchanged blocks hidden)
+    }
+
+  # module.instances.google_compute_instance.tf-instance-2 will be updated in-place
+  ~ resource "google_compute_instance" "tf-instance-2" {
+        id                         = "projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2"
+      ~ machine_type               = "e2-micro" -> "e2-standard-2"
+        name                       = "tf-instance-2"
+        tags                       = []
+        # (24 unchanged attributes hidden)
+
+        # (4 unchanged blocks hidden)
+    }
+
+  # module.instances.google_compute_instance.tf-instance-839703 will be created
+  + resource "google_compute_instance" "tf-instance-839703" {
+      + allow_stopping_for_update = true
+      + can_ip_forward            = false
+      + cpu_platform              = (known after apply)
+      + creation_timestamp        = (known after apply)
+      + current_status            = (known after apply)
+      + deletion_protection       = false
+      + effective_labels          = {
+          + "goog-terraform-provisioned" = "true"
+        }
+      + id                        = (known after apply)
+      + instance_id               = (known after apply)
+      + label_fingerprint         = (known after apply)
+      + machine_type              = "e2-standard-2"
+      + metadata_fingerprint      = (known after apply)
+      + metadata_startup_script   = <<-EOT
+            #!/bin/bash
+        EOT
+      + min_cpu_platform          = (known after apply)
+      + name                      = "tf-instance-839703"
+      + project                   = "qwiklabs-gcp-03-d88e0d84f5ea"
+      + self_link                 = (known after apply)
+      + tags_fingerprint          = (known after apply)
+      + terraform_labels          = {
+          + "goog-terraform-provisioned" = "true"
+        }
+      + zone                      = "us-west1-b"
+
+      + boot_disk {
+          + auto_delete                = true
+          + device_name                = (known after apply)
+          + disk_encryption_key_sha256 = (known after apply)
+          + guest_os_features          = (known after apply)
+          + kms_key_self_link          = (known after apply)
+          + mode                       = "READ_WRITE"
+          + source                     = (known after apply)
+
+          + initialize_params {
+              + architecture           = (known after apply)
+              + image                  = "projects/debian-cloud/global/images/debian-12-bookworm-v20261102"
+              + labels                 = (known after apply)
+              + provisioned_iops       = (known after apply)
+              + provisioned_throughput = (known after apply)
+              + resource_policies      = (known after apply)
+              + size                   = (known after apply)
+              + snapshot               = (known after apply)
+              + type                   = (known after apply)
+            }
+        }
+
+      + confidential_instance_config (known after apply)
+
+      + guest_accelerator (known after apply)
+
+      + network_interface {
+          + internal_ipv6_prefix_length = (known after apply)
+          + ipv6_access_type            = (known after apply)
+          + ipv6_address                = (known after apply)
+          + name                        = (known after apply)
+          + network                     = "default"
+          + network_attachment          = (known after apply)
+          + network_ip                  = (known after apply)
+          + stack_type                  = (known after apply)
+          + subnetwork                  = (known after apply)
+          + subnetwork_project          = (known after apply)
+        }
+
+      + reservation_affinity (known after apply)
+
+      + scheduling (known after apply)
+    }
+
+Plan: 1 to add, 2 to change, 0 to destroy.
+module.instances.google_compute_instance.tf-instance-839703: Creating...
+module.instances.google_compute_instance.tf-instance-1: Modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1]
+module.instances.google_compute_instance.tf-instance-2: Modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2]
+module.instances.google_compute_instance.tf-instance-839703: Still creating... [10s elapsed]
+module.instances.google_compute_instance.tf-instance-2: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2, 10s elapsed]
+module.instances.google_compute_instance.tf-instance-1: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1, 10s elapsed]
+module.instances.google_compute_instance.tf-instance-839703: Still creating... [20s elapsed]
+module.instances.google_compute_instance.tf-instance-2: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2, 20s elapsed]
+module.instances.google_compute_instance.tf-instance-1: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1, 20s elapsed]
+module.instances.google_compute_instance.tf-instance-839703: Creation complete after 27s [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-839703]
+module.instances.google_compute_instance.tf-instance-2: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2, 30s elapsed]
+module.instances.google_compute_instance.tf-instance-1: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1, 30s elapsed]
+module.instances.google_compute_instance.tf-instance-2: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2, 40s elapsed]
+module.instances.google_compute_instance.tf-instance-1: Still modifying... [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1, 40s elapsed]
+module.instances.google_compute_instance.tf-instance-2: Modifications complete after 44s [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-2]
+module.instances.google_compute_instance.tf-instance-1: Modifications complete after 44s [id=projects/qwiklabs-gcp-03-d88e0d84f5ea/zones/us-west1-b/instances/tf-instance-1]
+
+Apply complete! Resources: 1 added, 2 changed, 0 destroyed.
