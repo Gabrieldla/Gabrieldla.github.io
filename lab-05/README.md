@@ -10,7 +10,7 @@
 | **GSP497 — Cloud Operations for GKE** | **100 / 100** | [score](evidencia/gsp497-score.jpg) · [progreso](evidencia/gsp497-progreso.jpg) · [monitoring](evidencia/gsp497-monitoring.jpg) | [`02-gsp497/`](02-gsp497/) |
 | **GSP345 — Challenge Lab** | **100 / 100** | [score](evidencia/gsp345-score.jpg) | [`03-gsp345/`](03-gsp345/) |
 
-**Perfil público de Google Skills:** _(pendiente)_
+**Perfil público de Google Skills:** https://www.skills.google/public_profiles/eda4d13b-4bdc-477e-a1b4-44d19a613120
 
 ### Challenge Lab, tarea por tarea
 
