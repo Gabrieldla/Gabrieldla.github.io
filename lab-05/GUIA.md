@@ -70,6 +70,8 @@ Si no cuadran, explícalo en la bitácora en vez de esconderlo: a veces el lab c
 
 # Lab 3 — GSP345, el Challenge (14 pts)
 
+> 📋 **El detalle tarea por tarea está en [`03-gsp345/RUNBOOK.md`](03-gsp345/RUNBOOK.md).** Eso es lo que hay que tener abierto durante el lab; lo de aquí abajo es el resumen.
+
 **Este no trae pasos y vale el 70 % de la nota.** Los `.tf` ya están escritos en `03-gsp345/`. El plan es: pegarlos, rellenar cuatro valores, y seguir el orden de abajo.
 
 ## Minuto 0: preparar
