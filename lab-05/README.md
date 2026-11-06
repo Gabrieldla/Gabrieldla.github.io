@@ -6,7 +6,7 @@
 
 | Lab | Puntaje | Captura | Carpeta |
 |-----|---------|---------|---------|
-| GSP233 — Deploy Kubernetes Load Balancer Service with Terraform | — / 100 | `evidencia/gsp233.png` | [`01-gsp233/`](01-gsp233/) |
+| **GSP233 — Deploy Kubernetes Load Balancer Service with Terraform** | **100 / 100** | [nginx](evidencia/gsp233-nginx.jpg) · [progreso](evidencia/gsp233-progreso.jpg) | [`01-gsp233/`](01-gsp233/) |
 | **GSP497 — Cloud Operations for GKE** | **100 / 100** | [score](evidencia/gsp497-score.jpg) · [progreso](evidencia/gsp497-progreso.jpg) · [monitoring](evidencia/gsp497-monitoring.jpg) | [`02-gsp497/`](02-gsp497/) |
 | GSP345 — Build Infrastructure with Terraform: Challenge Lab | — / 100 | `evidencia/gsp345.png` | [`03-gsp345/`](03-gsp345/) |
 
@@ -27,14 +27,19 @@
 
 ## Bitácora
 
-### GSP233
+### GSP233 — hecho
 
-_Qué hice. Qué me costó. Qué cambiaría._
+**El resultado:** `Plan: 7 to add`, balanceador en `34.186.57.192`, y NGINX respondiendo — [captura](evidencia/gsp233-nginx.jpg) y `nginx-respuesta.txt` con el HTML pedido por `curl`.
 
-Puntos a responder cuando lo corra:
+**El grafo entre los dos providers.** El criterio pide ver que `kubernetes_service` depende del clúster, y la respuesta tiene un matiz: **no hay flecha directa**. Lo que hay es
 
-- La IP externa del Service y la prueba de que NGINX respondía.
-- **El grafo entre los dos providers:** por qué `kubernetes_service` no puede crearse antes que el clúster, y dónde se ve esa dependencia en el plan.
+```
+kubernetes_service.nginx -> kubernetes_namespace.staging -> google_container_cluster.default
+```
+
+una dependencia **transitiva**, más una segunda ruta que el grafo no dibuja: el bloque `provider "kubernetes"` se configura con `google_container_cluster.default.endpoint`, así que ni siquiera se puede hablar con Kubernetes antes de que el clúster exista. Por eso guardé `grafo.dot` además del plan: el plan dice *qué* se crea, el grafo dice *en qué orden y por qué*.
+
+**Qué me costó:** nada se rompió, y eso tiene su lección. En el GSP497 el `apply` estaba escondido dentro de un `make` y hubo que leer el script para capturar el plan a tiempo; aquí el lab manda `terraform apply` directo. Lo que sí hice por costumbre del anterior fue correr `terraform graph` antes del apply — no lo pedía el lab, y acabó siendo lo que respondió bien al criterio.
 
 ### GSP497 — hecho
 

@@ -1,0 +1,6 @@
+cluster_location = "us-east4-c"
+cluster_name = "tf-gke-k8s"
+cluster_region = "us-east4"
+load-balancer-ip = "34.186.57.192"
+network = "https://www.googleapis.com/compute/v1/projects/qwiklabs-gcp-02-1d4a0e4cf582/global/networks/tf-gke-k8s"
+subnetwork_name = "tf-gke-k8s"

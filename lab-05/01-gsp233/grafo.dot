@@ -1,0 +1,21 @@
+digraph G {
+  rankdir = "RL";
+  node [shape = rect, fontname = "sans-serif"];
+  "data.google_client_config.current" [label="data.google_client_config.current"];
+  "data.google_container_engine_versions.default" [label="data.google_container_engine_versions.default"];
+  "google_compute_address.default" [label="google_compute_address.default"];
+  "google_compute_network.default" [label="google_compute_network.default"];
+  "google_compute_subnetwork.default" [label="google_compute_subnetwork.default"];
+  "google_container_cluster.default" [label="google_container_cluster.default"];
+  "kubernetes_namespace.staging" [label="kubernetes_namespace.staging"];
+  "kubernetes_replication_controller.nginx" [label="kubernetes_replication_controller.nginx"];
+  "kubernetes_service.nginx" [label="kubernetes_service.nginx"];
+  "google_compute_subnetwork.default" -> "google_compute_network.default";
+  "google_container_cluster.default" -> "data.google_container_engine_versions.default";
+  "google_container_cluster.default" -> "google_compute_subnetwork.default";
+  "kubernetes_namespace.staging" -> "data.google_client_config.current";
+  "kubernetes_namespace.staging" -> "google_container_cluster.default";
+  "kubernetes_replication_controller.nginx" -> "kubernetes_namespace.staging";
+  "kubernetes_service.nginx" -> "google_compute_address.default";
+  "kubernetes_service.nginx" -> "kubernetes_namespace.staging";
+}
