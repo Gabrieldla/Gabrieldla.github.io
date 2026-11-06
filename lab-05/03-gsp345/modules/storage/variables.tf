@@ -1,13 +1,9 @@
-variable "project_id" {
-  type = string
-}
-
 variable "region" {
-  description = "El bucket es regional. Tiene que coincidir con la region que pide el enunciado."
-  type        = string
+  default = "us-west1"
 }
-
-variable "nombre_bucket" {
-  description = "El nombre del bucket, que te da el enunciado del lab. Es unico a nivel MUNDIAL, por eso suele llevar el id del proyecto dentro."
-  type        = string
+variable "zone" {
+  default = "us-west1-b"
+}
+variable "project_id" {
+  default = "qwiklabs-gcp-03-d88e0d84f5ea"
 }
