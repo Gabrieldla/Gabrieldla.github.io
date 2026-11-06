@@ -1,6 +1,6 @@
 # GSP497 — Cloud Operations for GKE
 
-Lab completado el **05/11/2026**. Clúster de GKE con una aplicación de ejemplo, creado y destruido con Terraform, y métricas de Prometheus llegando a Cloud Monitoring.
+Lab completado el **05/11/2026**, con **100 / 100**. Clúster de GKE con una aplicación de ejemplo, creado y destruido con Terraform, y métricas de Prometheus llegando a Cloud Monitoring.
 
 ## Qué hay aquí
 
@@ -44,7 +44,7 @@ Lo que hice fue leer `scripts/create.sh` antes de ejecutarlo. Hace cuatro cosas:
 
 ## Lo que demuestra la captura de Monitoring
 
-`../evidencia/gsp497-monitoring.png` es la política de alerta **que creó Terraform**, no una hecha a mano: `google_monitoring_alert_policy.prometheus_mem_alloc` está en el plan de arriba.
+[`../evidencia/gsp497-monitoring.jpg`](../evidencia/gsp497-monitoring.jpg) es la política de alerta **que creó Terraform**, no una hecha a mano: `google_monitoring_alert_policy.prometheus_mem_alloc` está en el plan de arriba.
 
 En la captura se ve la condición (`mem alloc above 12`) y, debajo, las series que llegaron de verdad:
 
