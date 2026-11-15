@@ -392,7 +392,7 @@ Aislar la línea responsable es más limpio que revertir el archivo entero, porq
 | Review humano | Todavía no |
 | Etiquetas puestas por el proyecto | `backport-requested`, `release-1.28`, `release-1.30` |
 
-Que el bot lo marque para backport a 1.28 y 1.30 indica que el proyecto trata este cambio como un arreglo que merece llegar a quienes ya lo sufren en producción.
+Las etiquetas de backport las pone un bot **por defecto en todos los PR**, no un mantenedor: lo dice el propio comentario automático. Lo anotamos así para no presumir de una señal que no existe. Lo que sí significa es que, si nadie las quita, el arreglo también llegaría a las ramas 1.28 y 1.30 cuando se mezcle.
 
 ---
 
