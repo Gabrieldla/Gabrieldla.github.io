@@ -88,6 +88,14 @@ Cada push a `main` despliega `index.html` con GitHub Pages. Ahí no hay backend:
 - **S02** — Sitio inicial, ramas y pull requests
 - **S03** — Libro de visitas en tres contenedores, Compose, Codespaces y los seis retos
 
+## Trabajo final
+
+Contribución real a un proyecto CNCF: **CloudNativePG**, el operador de PostgreSQL para Kubernetes.
+
+- Issue trabajado: [cloudnative-pg#11810](https://github.com/cloudnative-pg/cloudnative-pg/issues/11810) - una Subscription creada con `failover: true` quedaba imposible de modificar
+- Pull request enviado: [cloudnative-pg#11917](https://github.com/cloudnative-pg/cloudnative-pg/pull/11917)
+- Informe técnico completo: [trabajo-final/INFORME.md](trabajo-final/INFORME.md)
+
 ## Bitácora de decisiones (LAB-02)
 
 ### Reto 1: Imagen mínima
